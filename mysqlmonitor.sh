@@ -1,79 +1,79 @@
 #/bin/sh
 
-#¼ì²âmysql serverÊÇ·ñÕý³£Ìá¹©·þÎñ
+#ï¿½ï¿½ï¿½mysql serverï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½á¹©ï¿½ï¿½ï¿½ï¿½
 mysqladmin -u sky -ppwd -h localhost ping
 
-#»ñÈ¡mysqlµ±Ç°µÄ¼¸¸ö×´Ì¬Öµ
+#ï¿½ï¿½È¡mysqlï¿½ï¿½Ç°ï¿½Ä¼ï¿½ï¿½ï¿½×´Ì¬Öµ
 mysqladmin -u sky -ppwd -h localhost status
 
-#»ñÈ¡Êý¾Ý¿âµ±Ç°µÄÁ¬½ÓÐÅÏ¢
+#ï¿½ï¿½È¡ï¿½ï¿½ï¿½Ý¿âµ±Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¢
 mysqladmin -u sky -ppwd -h localhost processlist
 
-#»ñÈ¡µ±Ç°Êý¾Ý¿âµÄÁ¬½ÓÊý
+#ï¿½ï¿½È¡ï¿½ï¿½Ç°ï¿½ï¿½ï¿½Ý¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 mysql -u root -p123456 -BNe "select host,count(host) from processlist group by host;" information_schema
 
-#ÏÔÊ¾mysqlµÄuptime
+#ï¿½ï¿½Ê¾mysqlï¿½ï¿½uptime
 mysql -e"SHOW STATUS LIKE '%uptime%'"|awk '/ptime/{ calc = $NF / 3600;print $(NF-1), calc"Hour" }'
 
-#²é¿´Êý¾Ý¿âµÄ´óÐ¡
+#ï¿½é¿´ï¿½ï¿½ï¿½Ý¿ï¿½Ä´ï¿½Ð¡
 mysql -u root -p123456-e 'select table_schema,round(sum(data_length+index_length)/1024/1024,4) from information_schema.tables group by table_schema;'
 
-#²é¿´Ä³¸ö±íµÄÁÐÐÅÏ¢
+#ï¿½é¿´Ä³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¢
 mysql -u <user> --password=<password> -e "SHOW COLUMNS FROM <table>" <database> | awk '{print $1}' | tr "\n" "," | sed 's/,$//g'
 
-#Ö´ÐÐmysql½Å±¾
+#Ö´ï¿½ï¿½mysqlï¿½Å±ï¿½
 mysql -u user-name -p password < script.sql
 
-#mysql dumpÊý¾Ýµ¼³ö
+#mysql dumpï¿½ï¿½ï¿½Ýµï¿½ï¿½ï¿½
 mysqldump -uroot -T/tmp/mysqldump test test_outfile --fields-enclosed-by=\" --fields-terminated-by=,
 
-#mysqlÊý¾Ýµ¼Èë
+#mysqlï¿½ï¿½ï¿½Ýµï¿½ï¿½ï¿½
 mysqlimport --user=name --password=pwd test --fields-enclosed-by=\" --fields-terminated-by=, /tmp/test_outfile.txt
 LOAD DATA INFILE '/tmp/test_outfile.txt' INTO TABLE test_outfile FIELDS TERMINATED BY '"' ENCLOSED BY ',';
 
-#mysql½ø³Ì¼à¿Ø
+#mysqlï¿½ï¿½ï¿½Ì¼ï¿½ï¿½
 ps -ef | grep "mysqld_safe" | grep -v "grep"
 ps -ef | grep "mysqld" | grep -v "mysqld_safe"| grep -v "grep"
 
 
-#²é¿´µ±Ç°Êý¾Ý¿âµÄ×´Ì¬
+#ï¿½é¿´ï¿½ï¿½Ç°ï¿½ï¿½ï¿½Ý¿ï¿½ï¿½×´Ì¬
 mysql -u root -p123456 -e 'show status'
 
 
-#mysqlcheck ¹¤¾ß³ÌÐò¿ÉÒÔ¼ì²é(check),ÐÞ ¸´( repair),·Ö Îö( analyze)ºÍÓÅ»¯(optimize)MySQL Server ÖÐµÄ±í
+#mysqlcheck ï¿½ï¿½ï¿½ß³ï¿½ï¿½ï¿½ï¿½ï¿½Ô¼ï¿½ï¿½(check),ï¿½ï¿½ ï¿½ï¿½( repair),ï¿½ï¿½ ï¿½ï¿½( analyze)ï¿½ï¿½ï¿½Å»ï¿½(optimize)MySQL Server ï¿½ÐµÄ±ï¿½
 mysqlcheck -u root -p123456 --all-databases
 
-#mysql qps²éÑ¯  QPS = Questions(or Queries) / Seconds
+#mysql qpsï¿½ï¿½Ñ¯  QPS = Questions(or Queries) / Seconds
 mysql -u root -p123456 -e 'SHOW /*!50000 GLOBAL */ STATUS LIKE "Questions"'
 mysql -u root -p123456 -e 'SHOW /*!50000 GLOBAL */ STATUS LIKE "Queries"'
 
-#mysql Key Buffer ÃüÖÐÂÊ  key_buffer_read_hits = (1 - Key_reads / Key_read_requests) * 100%  key_buffer_write_hits= (1 - Key_writes / Key_write_requests) * 100%
+#mysql Key Buffer ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½  key_buffer_read_hits = (1 - Key_reads / Key_read_requests) * 100%  key_buffer_write_hits= (1 - Key_writes / Key_write_requests) * 100%
 mysql -u root -p123456 -e 'SHOW /*!50000 GLOBAL */ STATUS LIKE "Key%"'
 
-#mysql Innodb Buffer ÃüÖÐÂÊ  innodb_buffer_read_hits=(1-Innodb_buffer_pool_reads/Innodb_buffer_pool_read_requests) * 100%
+#mysql Innodb Buffer ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½  innodb_buffer_read_hits=(1-Innodb_buffer_pool_reads/Innodb_buffer_pool_read_requests) * 100%
 mysql -u root -p123456 -e 'SHOW /*!50000 GLOBAL */ STATUS LIKE "Innodb_buffer_pool_read%"'
 
-#mysql Query Cache ÃüÖÐÂÊ Query_cache_hits= (Qcache_hits / (Qcache_hits + Qcache_inserts)) * 100%
+#mysql Query Cache ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Query_cache_hits= (Qcache_hits / (Qcache_hits + Qcache_inserts)) * 100%
 mysql -u root -p123456 -e 'SHOW /*!50000 GLOBAL */ STATUS LIKE "Qcache%"'
 
-#mysql Table Cache ×´Ì¬Á¿
+#mysql Table Cache ×´Ì¬ï¿½ï¿½
 mysql -u root -p123456 -e 'SHOW /*!50000 GLOBAL */ STATUS LIKE "Open%"'
 
-#mysql Thread Cache ÃüÖÐÂÊ  Thread_cache_hits = (1 - Threads_created / Connections) * 100%  Õý³£À´Ëµ,Thread Cache ÃüÖÐÂÊÒªÔÚ 90% ÒÔÉÏ²ÅËã±È½ÏºÏÀí¡£
+#mysql Thread Cache ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½  Thread_cache_hits = (1 - Threads_created / Connections) * 100%  ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ëµ,Thread Cache ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½ï¿½ 90% ï¿½ï¿½ï¿½Ï²ï¿½ï¿½ï¿½È½Ïºï¿½ï¿½ï¿½ï¿½ï¿½
 mysql -u root -p123456 -e 'SHOW /*!50000 GLOBAL */ STATUS LIKE "Thread%"'
 
-#mysql Ëø¶¨×´Ì¬:Ëø¶¨×´Ì¬°üÀ¨±íËøºÍÐÐËøÁ½ÖÖ,ÎÒÃÇ¿ÉÒÔÍ¨¹ýÏµÍ³×´Ì¬±äÁ¿»ñµÃËø¶¨×Ü´ÎÊý,Ëø¶¨Ôì³ÉÆäËûÏß³ÌµÈ´ýµÄ´ÎÊý,ÒÔ¼°Ëø¶¨µÈ´ýÊ±¼äÐÅÏ¢
+#mysql ï¿½ï¿½ï¿½ï¿½×´Ì¬:ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½,ï¿½ï¿½ï¿½Ç¿ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ÏµÍ³×´Ì¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü´ï¿½ï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß³ÌµÈ´ï¿½ï¿½Ä´ï¿½ï¿½ï¿½,ï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È´ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Ï¢
 mysql -u root -p123456 -e 'SHOW /*!50000 GLOBAL */ STATUS LIKE "%lock%"'
 
-#mysql ¸´ÖÆÑÓÊ±Á¿ ÔÚslave½ÚµãÖ´ÐÐ
+#mysql ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ ï¿½ï¿½slaveï¿½Úµï¿½Ö´ï¿½ï¿½
 mysql -u root -p123456 -e 'SHOW SLAVE STATUS'
 
-#mysql Tmp table ×´¿ö Tmp Table µÄ×´¿öÖ÷ÒªÊÇÓÃÓÚ¼à¿Ø MySQL Ê¹ÓÃÁÙÊ±±íµÄÁ¿ÊÇ·ñ¹ý¶à,ÊÇ·ñÓÐÁÙÊ±±í¹ý´ó¶ø²»µÃ²»´ÓÄÚ´æÖÐ»»³öµ½´ÅÅÌÎÄ¼þÉÏ
+#mysql Tmp table ×´ï¿½ï¿½ Tmp Table ï¿½ï¿½×´ï¿½ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½ï¿½Ú¼ï¿½ï¿½ MySQL Ê¹ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ï¿½ï¿½ï¿½,ï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã²ï¿½ï¿½ï¿½ï¿½Ú´ï¿½ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½
 mysql -u root -p123456 -e 'SHOW /*!50000 GLOBAL */ STATUS LIKE "Created_tmp%"'
 
-#mysql Binlog Cache Ê¹ÓÃ×´¿ö:Binlog Cache ÓÃÓÚ´æ·Å»¹Î´Ð´Èë´ÅÅÌµÄ Binlog ÐÅ Ï¢ ¡£
+#mysql Binlog Cache Ê¹ï¿½ï¿½×´ï¿½ï¿½:Binlog Cache ï¿½ï¿½ï¿½Ú´ï¿½Å»ï¿½Î´Ð´ï¿½ï¿½ï¿½ï¿½Ìµï¿½ Binlog ï¿½ï¿½ Ï¢ ï¿½ï¿½
 mysql -u root -p123456 -e 'SHOW /*!50000 GLOBAL */ STATUS LIKE "Binlog_cache%"'
 
-#mysql nnodb_log_waits Á¿:Innodb_log_waits ×´Ì¬±äÁ¿Ö±½Ó·´Ó¦³ö Innodb Log Buffer ¿Õ¼ä²»×ãÔì³ÉµÈ´ýµÄ´ÎÊý
+#mysql nnodb_log_waits ï¿½ï¿½:Innodb_log_waits ×´Ì¬ï¿½ï¿½ï¿½ï¿½Ö±ï¿½Ó·ï¿½Ó¦ï¿½ï¿½ Innodb Log Buffer ï¿½Õ¼ä²»ï¿½ï¿½ï¿½ï¿½ÉµÈ´ï¿½ï¿½Ä´ï¿½ï¿½ï¿½
 mysql -u root -p123456 -e 'SHOW /*!50000 GLOBAL */ STATUS LIKE "Innodb_log_waits'
 
