@@ -16,7 +16,7 @@ commits=$(git log $tag.. --format="%H")
 # 遍历每个提交，并计算受影响的文件数和代码行数
 for commit in $commits; do
   files=$(git diff --name-only $commit | wc -l)
-  loc=$(git diff --shortstat $commit | awk '{print $1}')
+  loc=$(git diff --shortstat $commit | awk '{print $4}')
   total_files=$((total_files + files))
   total_loc=$((total_loc + loc))
 done
