@@ -4,6 +4,9 @@ read -p "请输入代码仓库的链接（按回车使用默认值）: " reposit
 repository_url=${repository_url:-http://vdgitlab.das-security.cn/ailpha_jgtsgz/bigdata-web-backend.git}
 read -p "请输入要统计的分支名称（按回车使用默认值 ailpha/qu/dev）: " branch
 branch=${branch:-ailpha/qu/dev}
+read -p "请输入要统计的天数（按回车使用默认值 30）: " days
+days=${days:-30}
+
 total_files=0
 total_loc=0
 total_commits=0
@@ -17,7 +20,7 @@ cd temp_repository
 git checkout $branch
 
 # 获取最近30天的提交记录
-start_date=$(date -d "-30 days" +%Y-%m-%d)
+start_date=$(date -d "-$days days" +%Y-%m-%d)
 commits=$(git rev-list --since="$start_date" $branch)
 
 # 遍历每个提交，并计算受影响的文件数、受影响的代码行数和提交数量
