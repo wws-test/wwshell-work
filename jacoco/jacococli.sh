@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# 寻找ailpha-qu-xxx-dist.jar文件
+jar_file=$(ls /usr/hdp/2.5.3.0-37/bigdata/mirror-web-api/lib/ailpha-qu-*-dist.jar)
+
+# 检查是否找到了文件
+if [ -z "$jar_file" ]; then
+  echo "未找到ailpha-qu-xxx-dist.jar文件"
+  exit 1
+fi
+
+# 执行jacoco命令
+java -jar org.jacoco.cli-0.8.7-nodeps.jar report jacoco.exec \
+--classfiles "$jar_file" \
+--sourcefiles /home/logsaas/ailpha_code/bigdata-web-backend/bdweb-mirror/src/main/java/com/dbapp \
+--html ./report
