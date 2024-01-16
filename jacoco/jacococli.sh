@@ -10,7 +10,9 @@ if [ -z "$jar_file" ]; then
 fi
 
 # 执行jacoco命令
-java -jar org.jacoco.cli-0.8.7-nodeps.jar report jacoco.exec \
+java -jar /home/org.jacoco.cli-0.8.7-SNAPSHOT-nodeps.jar dump --address 127.0.0.1 --port 18513 --destfile ./jacoco.exec
+
+java -jar org.jacoco.cli-0.8.7-SNAPSHOT-nodeps.jar report jacoco.exec \
 --classfiles "$jar_file" \
 --sourcefiles /home/logsaas/ailpha_code/bigdata-web-backend/bdweb-mirror/src/main/java/com/dbapp \
 --html ./report
