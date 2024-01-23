@@ -15,6 +15,6 @@ java -jar /home/org.jacoco.cli-0.8.7-SNAPSHOT-nodeps.jar dump --address 127.0.0.
 java -jar org.jacoco.cli-0.8.7-SNAPSHOT-nodeps.jar report jacoco.exec \
 --classfiles "$jar_file" \
 --sourcefiles /home/logsaas/ailpha_code/bigdata-web-backend/bdweb-mirror/src/main/java/com/dbapp \
---xml ./report.xml
+--xml ./report.xml   #--html ./report
 
 reportgenerator "-reports:./report.xml" "-targetdir:coveragereport" -reporttypes:HtmlSummary
