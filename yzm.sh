@@ -29,10 +29,10 @@ else
     docker exec $CONTAINER_ID mysql -u $DB_USER -p$DB_PASSWORD -D $DB_NAME -e "$SQL_UPDATE"
 
     # 重启用户服务
-    docker exec $CONTAINER_ID sh /home/init/status.sh user restart
+    sh /home/init/status.sh user restart
 
     # 重启Nginx服务
-    docker exec $CONTAINER_ID sh /home/init/status.sh nginx restart
+    sh /home/init/status.sh nginx restart
 
     echo "SQL update and services restart completed."
 fi
