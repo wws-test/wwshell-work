@@ -8,6 +8,8 @@ du -h --max-depth=1
 du -s * | sort -n | tail
 
 #按照目录大小从大到小排序
+tr -d '\r' < c:\Users\admin\Documents\GitHub\wwshell-work\liunx\dish.sh > c:\Users\admin\Documents\GitHub\wwshell-work\liunx\dish_fixed.sh
+
 du -b --max-depth 1 | sort -nr | perl -pe 's{([0-9]+)}{sprintf "%.1f%s", $1>=2**30? ($1/2**30, "G"): $1>=2**20? ($1/2**20, "M"): $1>=2**10? ($1/2**10, "K"): ($1, "")}e'
 
 #列出path这个目录的文件树
