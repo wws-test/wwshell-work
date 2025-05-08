@@ -5,7 +5,7 @@
 # 功能描述: 检查备份文件并准备SVN提交
 #
 # 主要功能:
-# 1. 查找所有以 _bk 结尾的备份文件夹
+# 1. 查找所有以 _bk 结尾的备份文件夹，确认文件数量名称交给用户确认
 # 2. 检查每个备份文件夹中的 MD5 校验和
 # 3. 验证备份文件的完整性
 # 4. 删除已成功备份的源文件
@@ -127,6 +127,38 @@ check_dependencies() {
     return 0
 }
 
+# 显示所有要处理的文件夹并等待用户确认
+show_and_confirm() {
+    local -a backup_folders=("$@")
+    local total=${#backup_folders[@]}
+    
+    echo -e "\n${YELLOW}找到以下备份文件夹及其对应的源文件：${NC}"
+    echo -e "${YELLOW}----------------------------------------${NC}"
+    
+    for backup_folder in "${backup_folders[@]}"; do
+        local source_folder="${backup_folder%_bk}"
+        if [ -d "$source_folder" ]; then
+            echo -e "${GREEN}备份文件夹:${NC} $backup_folder"
+            echo -e "${GREEN}源文件夹:  ${NC} $source_folder"
+            echo -e "${YELLOW}----------------------------------------${NC}"
+        else
+            echo -e "${GREEN}备份文件夹:${NC} $backup_folder"
+            echo -e "${RED}源文件夹:  ${NC} $source_folder ${RED}(不存在)${NC}"
+            echo -e "${YELLOW}----------------------------------------${NC}"
+        fi
+    done
+    
+    echo -e "\n${YELLOW}总共发现 ${total} 个备份文件夹${NC}"
+    echo -e "${YELLOW}请确认是否继续处理这些文件？[y/N]${NC}"
+    
+    read -r response
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+        log_message "$LOG_INFO" "用户取消操作"
+        return 1
+    fi
+    return 0
+}
+
 # 检查MD5并处理备份文件夹
 process_backup_folder() {
     local backup_folder="$1"
@@ -183,14 +215,21 @@ main() {
     
     # 查找所有_bk结尾的文件夹
     local backup_folders=()
-    while IFS= read -r folder;do
+    while IFS= read -r folder; do
         backup_folders+=("$folder")
     done < <(find . -type d -name "*_bk" 2>/dev/null)
     
-    if [ ${#backup_folders[@]} -eq 0 ];then
+    if [ ${#backup_folders[@]} -eq 0 ]; then
         log_message "$LOG_WARNING" "未找到任何备份文件夹"
         exit 0
     fi
+    
+    # 显示文件夹列表并等待用户确认
+    if ! show_and_confirm "${backup_folders[@]}"; then
+        exit 0
+    fi
+    
+    log_message "$LOG_INFO" "用户确认继续处理..."
     
     # 统计信息
     local total_folders=${#backup_folders[@]}
@@ -198,8 +237,8 @@ main() {
     local failed=0
     
     # 处理每个备份文件夹
-    for folder in "${backup_folders[@]}";do
-        if process_backup_folder "$folder";then
+    for folder in "${backup_folders[@]}"; do
+        if process_backup_folder "$folder"; then
             ((success++))
         else
             ((failed++))
