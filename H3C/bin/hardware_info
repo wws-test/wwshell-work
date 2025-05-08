@@ -1,0 +1,173 @@
+#!/bin/bash
+
+# 设置脚本目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
+
+# 引入核心类
+source "${SCRIPT_DIR}/src/core/base.sh"
+
+# 引入模块
+source "${SCRIPT_DIR}/src/modules/system_info.sh"
+
+# 主程序类
+class_main() {
+    # 私有变量
+    local _config_manager
+    local _plugin_manager
+    local _error_handler
+    local _modules=()
+    
+    # 构造函数
+    constructor() {
+        # 初始化组件
+        _config_manager=$(class_config_manager "${SCRIPT_DIR}/config/default.conf")
+        _plugin_manager=$(class_plugin_manager "${SCRIPT_DIR}/src/plugins")
+        _error_handler=$(class_error_handler)
+        
+        # 加载配置
+        $_config_manager.load_config
+        
+        # 加载插件
+        if [ "$($_config_manager.get_config "plugins.enabled" "true")" = "true" ]; then
+            $_plugin_manager.load_plugins
+        fi
+        
+        # 初始化模块
+        initialize_modules
+    }
+    
+    # 初始化模块
+    initialize_modules() {
+        # 检查模块配置
+        local enabled_modules=$($_config_manager.get_config "modules" "")
+        
+        # 初始化系统信息模块
+        if [[ "$enabled_modules" =~ "system=true" ]]; then
+            _modules+=("system_info")
+        fi
+        
+        # TODO: 初始化其他模块
+    }
+    
+    # 显示帮助信息
+    show_help() {
+        echo "Hardware Info - 硬件信息收集工具"
+        echo
+        echo "用法: $(basename "$0") [选项]"
+        echo
+        echo "选项:"
+        echo "  -h, --help     显示此帮助信息"
+        echo "  -a, --all      显示所有信息"
+        echo "  -s, --system   显示系统信息"
+        echo "  -c, --cpu      显示CPU信息"
+        echo "  -m, --memory   显示内存信息"
+        echo "  -d, --disk     显示磁盘信息"
+        echo "  -g, --gpu      显示GPU信息"
+        echo "  -n, --network  显示网络信息"
+        echo "  -b, --bios     显示BIOS信息"
+        echo "  -j, --json     使用JSON格式输出"
+        echo
+    }
+    
+    # 解析命令行参数
+    parse_args() {
+        local show_all=true
+        local show_system=false
+        local show_cpu=false
+        local show_memory=false
+        local show_disk=false
+        local show_gpu=false
+        local show_network=false
+        local show_bios=false
+        local use_json=false
+        
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                -h|--help)
+                    show_help
+                    exit 0
+                    ;;
+                -a|--all)
+                    show_all=true
+                    ;;
+                -s|--system)
+                    show_all=false
+                    show_system=true
+                    ;;
+                -c|--cpu)
+                    show_all=false
+                    show_cpu=true
+                    ;;
+                -m|--memory)
+                    show_all=false
+                    show_memory=true
+                    ;;
+                -d|--disk)
+                    show_all=false
+                    show_disk=true
+                    ;;
+                -g|--gpu)
+                    show_all=false
+                    show_gpu=true
+                    ;;
+                -n|--network)
+                    show_all=false
+                    show_network=true
+                    ;;
+                -b|--bios)
+                    show_all=false
+                    show_bios=true
+                    ;;
+                -j|--json)
+                    use_json=true
+                    ;;
+                *)
+                    $_error_handler.handle_error "$ERROR_LEVEL_ERROR" "无效的参数: $1" 1
+                    show_help
+                    exit 1
+                    ;;
+            esac
+            shift
+        done
+        
+        # 执行模块
+        local results=()
+        for module in "${_modules[@]}"; do
+            if [ "$show_all" = true ] || [ "show_${module}" = true ]; then
+                local result=$(class_${module}.execute)
+                if [ $? -eq 0 ]; then
+                    results+=("$result")
+                fi
+            fi
+        done
+        
+        # 输出结果
+        if [ "$use_json" = true ]; then
+            echo "{"
+            local first=true
+            for result in "${results[@]}"; do
+                if [ "$first" = true ]; then
+                    first=false
+                else
+                    echo ","
+                fi
+                echo "$result"
+            done
+            echo "}"
+        else
+            for result in "${results[@]}"; do
+                echo "$result"
+            done
+        fi
+    }
+    
+    # 主函数
+    main() {
+        # 解析命令行参数
+        parse_args "$@"
+    }
+}
+
+# 创建主程序实例并执行
+main_instance=$(class_main)
+$main_instance.main "$@" 

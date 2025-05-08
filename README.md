@@ -56,3 +56,7 @@ shell常用分析命令和脚本
 
 使用 eth0 网卡，循环播放 sample.pcap 文件中的数据包 10 次：
 ./tcpreplay_stress_tester.sh -i eth0 -f sample.pcap -m 5 -l 10
+
+
+
+写一个新脚本 目的是在备份完成后 准备提交SVN  我们先寻找备份文件夹 后缀为_bk的文件 先检查里面的md5文件 使用 md5sum -c md5sums.txt 命令 如果里面连md5文件都没有那么直接pass 抛出这个异常  检查完成后 删除备份文件的源文件  然后svn add   最后用svn status 检查添加成功了没有 脚本开头加入说明文案
