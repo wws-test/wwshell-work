@@ -38,10 +38,27 @@ LOG_FILE="${LOG_DIR}/md5_check_${DATE}.log"
 # 确保日志目录存在
 mkdir -p "$LOG_DIR"
 
-# 初始化计数器
-total_success=0
-total_failed=0
-total_missing_md5=0
+# 初始化计数器和临时文件
+TEMP_DIR=$(mktemp -d)
+
+# Model目录统计
+MODEL_SUCCESS_COUNT_FILE="${TEMP_DIR}/model_success_count"
+MODEL_FAILED_COUNT_FILE="${TEMP_DIR}/model_failed_count"
+MODEL_MISSING_COUNT_FILE="${TEMP_DIR}/model_missing_count"
+MODEL_MD5_FILES_COUNT_FILE="${TEMP_DIR}/model_md5_files_count"
+
+# Vendor目录统计
+VENDOR_SUCCESS_COUNT_FILE="${TEMP_DIR}/vendor_success_count"
+VENDOR_FAILED_COUNT_FILE="${TEMP_DIR}/vendor_failed_count"
+VENDOR_MISSING_COUNT_FILE="${TEMP_DIR}/vendor_missing_count"
+VENDOR_MD5_FILES_COUNT_FILE="${TEMP_DIR}/vendor_md5_files_count"
+
+# 初始化所有计数器文件
+for file in "$MODEL_SUCCESS_COUNT_FILE" "$MODEL_FAILED_COUNT_FILE" "$MODEL_MISSING_COUNT_FILE" \
+           "$VENDOR_SUCCESS_COUNT_FILE" "$VENDOR_FAILED_COUNT_FILE" "$VENDOR_MISSING_COUNT_FILE" \
+           "$MODEL_MD5_FILES_COUNT_FILE" "$VENDOR_MD5_FILES_COUNT_FILE"; do
+    echo "0" > "$file"
+done
 
 # 写入日志头部
 echo "MD5 Checksum Verification Report - ${DATE}" > "$LOG_FILE"
@@ -51,29 +68,42 @@ echo "" >> "$LOG_FILE"
 # 遍历目录函数
 check_directory() {
     local dir="$1"
+    local dir_type="$2"  # "Model" 或 "Vendor"
     local base_dir=$(basename "$dir")
-    local missing_md5_dirs=()
     
     echo "Checking directory: $dir" >> "$LOG_FILE"
     echo "----------------------------------------" >> "$LOG_FILE"
+    
+    # 设置对应的计数器文件
+    local SUCCESS_COUNT_FILE
+    local FAILED_COUNT_FILE
+    local MISSING_COUNT_FILE
+    local MD5_FILES_COUNT_FILE
+    
+    if [ "$dir_type" == "Model" ]; then
+        SUCCESS_COUNT_FILE="$MODEL_SUCCESS_COUNT_FILE"
+        FAILED_COUNT_FILE="$MODEL_FAILED_COUNT_FILE"
+        MISSING_COUNT_FILE="$MODEL_MISSING_COUNT_FILE"
+        MD5_FILES_COUNT_FILE="$MODEL_MD5_FILES_COUNT_FILE"
+    else
+        SUCCESS_COUNT_FILE="$VENDOR_SUCCESS_COUNT_FILE"
+        FAILED_COUNT_FILE="$VENDOR_FAILED_COUNT_FILE"
+        MISSING_COUNT_FILE="$VENDOR_MISSING_COUNT_FILE"
+        MD5_FILES_COUNT_FILE="$VENDOR_MD5_FILES_COUNT_FILE"
+    fi
     
     # 首先找出所有最深层的目录
     while read -r leaf_dir; do
         # 检查此目录是否包含 md5sums.txt
         if [ ! -f "${leaf_dir}/md5sums.txt" ]; then
-            missing_md5_dirs+=("$leaf_dir")
-            total_missing_md5=$((total_missing_md5 + 1))
+            local current_missing=$(($(cat "$MISSING_COUNT_FILE") + 1))
+            echo "$current_missing" > "$MISSING_COUNT_FILE"
         fi
     done < <(find "$dir" -type d -links 2)
     
-    # 记录没有 md5sums.txt 的目录
-    if [ ${#missing_md5_dirs[@]} -gt 0 ]; then
-        echo "Directories without md5sums.txt:" >> "$LOG_FILE"
-        for missing_dir in "${missing_md5_dirs[@]}"; do
-            echo "  - $missing_dir" >> "$LOG_FILE"
-        done
-        echo "" >> "$LOG_FILE"
-    fi
+    # 统计md5sums.txt文件数量
+    local md5_files_count=$(find "$dir" -type f -name "md5sums.txt" | wc -l)
+    echo "$md5_files_count" > "$MD5_FILES_COUNT_FILE"
     
     # 查找所有 md5sums.txt 文件
     find "$dir" -type f -name "md5sums.txt" | while read -r md5_file; do
@@ -87,13 +117,15 @@ check_directory() {
         if md5sum -c md5sums.txt > temp_result 2>&1; then
             # 成功的情况
             local success_count=$(grep -c ': OK' temp_result)
-            total_success=$((total_success + success_count))
+            local current_success=$(($(cat "$SUCCESS_COUNT_FILE") + success_count))
+            echo "$current_success" > "$SUCCESS_COUNT_FILE"
             echo "✓ All $success_count files verified successfully" >> "$LOG_FILE"
         else
             # 失败的情况
             local failed_files=$(grep -v ': OK' temp_result | grep -v 'WARNING')
             local failed_count=$(echo "$failed_files" | grep -c ': FAILED')
-            total_failed=$((total_failed + failed_count))
+            local current_failed=$(($(cat "$FAILED_COUNT_FILE") + failed_count))
+            echo "$current_failed" > "$FAILED_COUNT_FILE"
             
             echo "✗ Found $failed_count failures:" >> "$LOG_FILE"
             echo "$failed_files" >> "$LOG_FILE"
@@ -111,26 +143,62 @@ echo "" >> "$LOG_FILE"
 # 检查 Model 目录
 if [ -d "/HDD_Raid/SVN_MODEL_REPO/Model" ]; then
     echo "Checking Model directory..." >> "$LOG_FILE"
-    check_directory "/HDD_Raid/SVN_MODEL_REPO/Model"
+    check_directory "/HDD_Raid/SVN_MODEL_REPO/Model" "Model"
 fi
 
 # 检查 Vendor 目录
 if [ -d "/HDD_Raid/SVN_MODEL_REPO/Vendor" ]; then
     echo "Checking Vendor directory..." >> "$LOG_FILE"
-    check_directory "/HDD_Raid/SVN_MODEL_REPO/Vendor"
+    check_directory "/HDD_Raid/SVN_MODEL_REPO/Vendor" "Vendor"
 fi
 
-# 写入总结报告
-echo "Summary" >> "$LOG_FILE"
+# 读取所有统计数据
+model_success=$(cat "$MODEL_SUCCESS_COUNT_FILE")
+model_failed=$(cat "$MODEL_FAILED_COUNT_FILE")
+model_missing_md5=$(cat "$MODEL_MISSING_COUNT_FILE")
+model_md5_files=$(cat "$MODEL_MD5_FILES_COUNT_FILE")
+
+vendor_success=$(cat "$VENDOR_SUCCESS_COUNT_FILE")
+vendor_failed=$(cat "$VENDOR_FAILED_COUNT_FILE")
+vendor_missing_md5=$(cat "$VENDOR_MISSING_COUNT_FILE")
+vendor_md5_files=$(cat "$VENDOR_MD5_FILES_COUNT_FILE")
+
+# 计算总数
+total_success=$((model_success + vendor_success))
+total_failed=$((model_failed + vendor_failed))
+total_missing_md5=$((model_missing_md5 + vendor_missing_md5))
+total_md5_files=$((model_md5_files + vendor_md5_files))
+
+# 写入详细的统计报告
+echo "统计报告" >> "$LOG_FILE"
 echo "=========================================" >> "$LOG_FILE"
-echo "Total successful verifications: $total_success" >> "$LOG_FILE"
-echo "Total failed verifications: $total_failed" >> "$LOG_FILE"
-echo "Total directories missing md5sums.txt: $total_missing_md5" >> "$LOG_FILE"
-echo "End of report - $(date)" >> "$LOG_FILE"
+echo "Model 目录统计：" >> "$LOG_FILE"
+echo "- md5sums.txt 文件总数：$model_md5_files" >> "$LOG_FILE"
+echo "- 成功校验文件数：$model_success" >> "$LOG_FILE"
+[ $model_failed -gt 0 ] && echo "- 校验失败文件数：$model_failed" >> "$LOG_FILE"
+echo "- 缺少md5sums.txt的目录数：$model_missing_md5" >> "$LOG_FILE"
+echo "" >> "$LOG_FILE"
+
+echo "Vendor 目录统计：" >> "$LOG_FILE"
+echo "- md5sums.txt 文件总数：$vendor_md5_files" >> "$LOG_FILE"
+echo "- 成功校验文件数：$vendor_success" >> "$LOG_FILE"
+[ $vendor_failed -gt 0 ] && echo "- 校验失败文件数：$vendor_failed" >> "$LOG_FILE"
+echo "- 缺少md5sums.txt的目录数：$vendor_missing_md5" >> "$LOG_FILE"
+echo "" >> "$LOG_FILE"
+
+echo "总体统计：" >> "$LOG_FILE"
+echo "- md5sums.txt 文件总数：$total_md5_files" >> "$LOG_FILE"
+[ $total_success -gt 0 ] && echo "- 总成功校验文件数：$total_success" >> "$LOG_FILE"
+[ $total_failed -gt 0 ] && echo "- 总校验失败文件数：$total_failed" >> "$LOG_FILE"
+echo "- 总缺少md5sums.txt的目录数：$total_missing_md5" >> "$LOG_FILE"
+echo "检查完成时间: $(date)" >> "$LOG_FILE"
+
+# 清理临时文件
+rm -rf "$TEMP_DIR"
 
 # 如果有失败的检查，退出码为1
 if [ $total_failed -gt 0 ]; then
     exit 1
 fi
 
-exit 0 
+exit 0
