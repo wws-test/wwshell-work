@@ -1,0 +1,142 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Vendor Directory Structure Schema",
+    "description": "Schema to validate the directory structure under /HDD_Raid/SVN_MODEL_REPO/Vendor",
+    "type": "array",
+    "items": {
+      "title": "Level 1: Vendor Directory",
+      "description": "Represents a single vendor directory (e.g., kunlunxin)",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "directory"
+        },
+        "name": {
+          "type": "string",
+          "description": "Vendor name (e.g., kunlunxin, Cambricon, etc.)"
+        },
+        "contents": {
+          "type": "array",
+          "minItems": 1, 
+          "items": {
+            "title": "Level 2: GPU Model Directory",
+            "description": "Represents a GPU model directory (e.g., P800)",
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "directory"
+              },
+              "name": {
+                "type": "string",
+                "description": "GPU model name (e.g., P800)"
+              },
+              "contents": {
+                "type": "array",
+                "minItems": 1, 
+                "items": {
+                  "title": "Level 3: Large Model Name Directory",
+                  "description": "Represents a large model directory (e.g., DeepSeek-R1-671B)",
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "directory"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Large model name (e.g., DeepSeek-R1-671B)"
+                    },
+                    "contents": {
+                      "type": "array",
+                      "minItems": 1, 
+                      "items": {
+                        "title": "Level 4: Model Category Directory",
+                        "description": "Represents a model category directory (e.g., Pre-training, Inference)",
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "directory"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Model category name",
+             
+                            "enum": [
+                              "Pre-training",
+                              "Lora fine-tuning",
+                              "SFT fine-tuning",
+                              "Inference",
+                              "Training" 
+                            ]
+                          },
+                          "contents": {
+                            "type": "array",
+                             "minItems": 1, 
+                            "items": {
+                              "title": "Level 5: Model Version Directory",
+                              "description": "Represents a model version directory (e.g., V1.0)",
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "directory"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "description": "Model version (e.g., V1.0)"
+                                },
+                                "contents": {
+                                  "title": "Level 6: Model Software Content",
+                                  "description": "Contents of the model software directory (files/directories)",
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "name",
+                                "contents"
+                              ],
+                              "additionalProperties": false 
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "name",
+                          "contents"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "name",
+                    "contents"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "type",
+              "name",
+              "contents"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "contents"
+      ],
+      "additionalProperties": false 
+    },
+    "additionalItems": false
+  }
+  
