@@ -10,7 +10,7 @@
 # 3. 对源文件夹进行压缩（tar.gz格式）
 # 4. 移动压缩文件到备份文件夹
 # 5. 生成文件的 MD5 校验值（md5sums.txt）
-# 6. 跳过大于300GB的文件夹
+# 6. 大于300GB的文件夹特殊处理
 # 7. 自动清理不完整的备份
 #
 # 使用方法:
@@ -30,7 +30,7 @@
 #    - 空文件夹
 #    - 大于300GB的文件夹
 #    - 已存在的 tar.gz 文件
-#    - 已存在的 _bk 文件夹
+#    - 已存在的 _bk，_300bk 文件夹
 # 3. 自动清理不完整或失败的备份
 #
 # 作者: sww
@@ -104,6 +104,34 @@ get_folder_size() {
     echo $((size_in_bytes / 1024 / 1024 / 1024)) # 转换为GB
 }
 
+# 处理大文件夹（>300GB）
+process_large_folder() {
+    local folder="$1"
+    local success=true
+    
+    log_message "$LOG_INFO" "处理大文件夹 (>300GB): $folder"
+    
+    # 在原位置生成 md5sums.txt
+    (cd "$folder" && find . -type f -not -name "md5sums.txt" -print0 | xargs -0 md5sum > md5sums.txt)
+    if [ $? -ne 0 ]; then
+        log_message "$LOG_ERROR" "生成 MD5 校验文件失败: $folder"
+        success=false
+    fi
+    
+    if $success; then
+        # 重命名为 xxx_300bk
+        local new_name="${folder}_300bk"
+        mv "$folder" "$new_name"
+        if [ $? -eq 0 ]; then
+            log_message "$LOG_INFO" "文件夹已重命名: $new_name"
+            ((success++))
+        else
+            log_message "$LOG_ERROR" "重命名失败: $folder -> $new_name"
+            ((failed++))
+        fi
+    fi
+}
+
 # 主处理函数
 process_folder() {
     local folder="$1"
@@ -114,12 +142,15 @@ process_folder() {
         log_message "$LOG_WARNING" "文件夹 $folder 为空，跳过处理"
         return 0
     fi
-        # 检查文件夹大小
+    
+    # 检查文件夹大小
     local folder_size
     folder_size=$(get_folder_size "$folder")
+    
+    # 如果大于300GB，使用特殊处理
     if [ "$folder_size" -gt 300 ]; then
-        log_message "$LOG_WARNING" "文件夹 $folder 大小为 ${folder_size}GB，超过300GB，跳过处理"
-        return 0
+        process_large_folder "$folder"
+        return $?
     fi
     
     # 创建备份文件夹
@@ -159,8 +190,8 @@ log_message "$LOG_INFO" "开始执行文件夹压缩备份任务"
 # 检查系统依赖
 check_dependencies || exit 1
 
-# 获取未被SVN管理的文件夹列表，跳过 .tar.gz 文件和 _bk 备份文件夹
-mapfile -t unmanaged_folders < <(svn status | grep '^?' | awk '{print $2}' | grep -vE '\.tar(\.gz)?$|_bk$')
+# 获取未被SVN管理的文件夹列表，跳过 .tar.gz 文件、_bk 和 _300bk 备份文件夹
+mapfile -t unmanaged_folders < <(svn status | grep '^?' | awk '{print $2}' | grep -vE '\.tar(\.gz)?$|_bk$|_300bk$')
 
 # 检查是否找到未管理的文件夹
 if [ ${#unmanaged_folders[@]} -eq 0 ]; then
@@ -176,30 +207,47 @@ declare -i failed=0
 # 检查备份是否已完成
 check_backup_completed() {
     local folder="$1"
-    local backup_folder="${folder}_bk"
+    local backup_folder_bk="${folder}_bk"
+    local backup_folder_300bk="${folder}_300bk"
     
-    # 检查备份文件夹和md5文件是否都存在
-    if [ -d "$backup_folder" ] && [ -f "${backup_folder}/md5sums.txt" ]; then
+    # 检查普通备份文件夹
+    if [ -d "$backup_folder_bk" ] && [ -f "${backup_folder_bk}/md5sums.txt" ]; then
         # 检查压缩文件是否存在
-        if [ -f "${backup_folder}/${folder}.tar.gz" ]; then
+        if [ -f "${backup_folder_bk}/${folder}.tar.gz" ]; then
             # 验证md5文件不为空
-            if [ -s "${backup_folder}/md5sums.txt" ]; then
+            if [ -s "${backup_folder_bk}/md5sums.txt" ]; then
                 return 0  # 备份完成
             fi
         fi
     fi
+    
+    # 检查大文件备份文件夹
+    if [ -d "$backup_folder_300bk" ] && [ -f "${backup_folder_300bk}/md5sums.txt" ]; then
+        # 验证md5文件不为空
+        if [ -s "${backup_folder_300bk}/md5sums.txt" ]; then
+            return 0  # 备份完成
+        fi
+    fi
+    
     return 1  # 备份未完成
 }
 
 # 清理不完整的备份
 cleanup_incomplete_backup() {
     local folder="$1"
-    local backup_folder="${folder}_bk"
+    local backup_folder_bk="${folder}_bk"
+    local backup_folder_300bk="${folder}_300bk"
     
-    # 如果备份文件夹存在，删除它
-    if [ -d "$backup_folder" ]; then
-        log_message "$LOG_INFO" "清理不完整的备份文件夹: $backup_folder"
-        rm -rf "$backup_folder"
+    # 如果普通备份文件夹存在，删除它
+    if [ -d "$backup_folder_bk" ]; then
+        log_message "$LOG_INFO" "清理不完整的备份文件夹: $backup_folder_bk"
+        rm -rf "$backup_folder_bk"
+    fi
+    
+    # 如果大文件备份文件夹存在，删除它
+    if [ -d "$backup_folder_300bk" ]; then
+        log_message "$LOG_INFO" "清理不完整的备份文件夹: $backup_folder_300bk"
+        rm -rf "$backup_folder_300bk"
     fi
     
     # 如果压缩文件存在，删除它

@@ -5,11 +5,11 @@
 # 功能描述: 检查备份文件并准备SVN提交
 #
 # 主要功能:
-# 1. 查找所有以 _bk 结尾的备份文件夹，确认文件数量名称交给用户确认
+# 1. 查找所有以 _bk 或 _300bk 结尾的备份文件夹，确认文件数量名称交给用户确认
 # 2. 检查每个备份文件夹中的 MD5 校验和
 # 3. 验证备份文件的完整性
 # 4. 删除已成功备份的源文件
-# 5. 移除备份文件夹的_bk后缀
+# 5. 移除备份文件夹的后缀 (_bk 或 _300bk)
 # 6. 将重命名后的文件夹添加到 SVN
 # 7. 记录所有操作到日志文件
 #
@@ -28,7 +28,7 @@
 #
 # 注意事项:
 # 1. 需要有 svn, md5sum 等基本命令
-# 2. 只处理 _bk 结尾的文件夹
+# 2. 只处理 _bk 和 _300bk 结尾的文件夹
 # 3. 会检查 md5sums.txt 文件的存在和正确性
 # 4. 所有操作都会保持单一日志文件，便于追踪
 #
@@ -136,7 +136,13 @@ show_and_confirm() {
     echo -e "${YELLOW}----------------------------------------${NC}"
     
     for backup_folder in "${backup_folders[@]}"; do
-        local source_folder="${backup_folder%_bk}"
+        local source_folder
+        if [[ "$backup_folder" == *"_300bk" ]]; then
+            source_folder="${backup_folder%_300bk}"
+        else
+            source_folder="${backup_folder%_bk}"
+        fi
+        
         if [ -d "$source_folder" ]; then
             echo -e "${GREEN}备份文件夹:${NC} $backup_folder"
             echo -e "${GREEN}源文件夹:  ${NC} $source_folder"
@@ -162,7 +168,12 @@ show_and_confirm() {
 # 检查MD5并处理备份文件夹
 process_backup_folder() {
     local backup_folder="$1"
-    local source_folder="${backup_folder%_bk}"  # 移除_bk后缀得到源文件夹名
+    local source_folder
+    if [[ "$backup_folder" == *"_300bk" ]]; then
+        source_folder="${backup_folder%_300bk}"
+    else
+        source_folder="${backup_folder%_bk}"
+    fi
     
     # 检查md5sums.txt是否存在
     if [ ! -f "${backup_folder}/md5sums.txt" ];then
@@ -185,7 +196,7 @@ process_backup_folder() {
             return 1
         }
         
-        # 删除成功后，将备份文件夹重命名（移除_bk后缀）
+        # 删除成功后，将备份文件夹重命名（移除后缀）
         log_message "$LOG_INFO" "正在重命名备份文件夹..."
         mv "$backup_folder" "$source_folder" || {
             log_message "$LOG_ERROR" "重命名备份文件夹失败: ${backup_folder} -> ${source_folder}"
@@ -213,11 +224,8 @@ main() {
     # 检查依赖
     check_dependencies || exit 1
     
-    # 查找所有_bk结尾的文件夹
-    local backup_folders=()
-    while IFS= read -r folder; do
-        backup_folders+=("$folder")
-    done < <(find . -type d -name "*_bk" 2>/dev/null)
+    # 查找所有备份文件夹（包括 _bk 和 _300bk）
+    mapfile -t backup_folders < <(find . -type d \( -name "*_bk" -o -name "*_300bk" \))
     
     if [ ${#backup_folders[@]} -eq 0 ]; then
         log_message "$LOG_WARNING" "未找到任何备份文件夹"
