@@ -90,9 +90,6 @@ configure_static_ip() {
     
     # 获取用户输入
     read -p "请输入IP地址: " ip_address
-    read -p "请输入子网掩码: " netmask
-    read -p "请输入网关: " gateway
-    read -p "请输入DNS服务器(多个DNS用空格分隔): " dns_servers
     
     local config_file="/etc/sysconfig/network-scripts/ifcfg-$iface"
     
@@ -105,11 +102,10 @@ TYPE=Ethernet
 BOOTPROTO=static
 DEFROUTE=yes
 NAME=$iface
-UUID=2b2c0153-94c2-4c11-9559-6c9d74d0b994
 DEVICE=$iface
 ONBOOT=yes
 IPADDR=$ip_address
-NETMASK=$netmask
+NETMASK=255.255.0.0
 
 EOF
     

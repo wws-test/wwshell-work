@@ -1,0 +1,51 @@
+{
+    "document_to_check": "template.docx",
+    "title_rules": {
+        "expected_text": "测试工具版本",
+        "style_name": "Heading 4",
+        "min_length": 6,
+        "max_length": 20,
+        "check_by_paragraph_index": 0
+    },
+    "table_rules": [
+        {
+            "table_index": 0,
+            "skip_header_rows": 1,
+            "cell_checks": [
+                {
+                    "row": 0,
+                    "col": 0,
+                    "not_empty": true,
+                    "allowed_values": ["姓名", "负责人"]
+                },
+                {
+                    "row": 0,
+                    "col": 1,
+                    "not_empty": true,
+                    "allowed_values": null
+                },
+                {
+                    "col": 2,
+                    "not_empty": true,
+                    "allowed_values": ["通过", "未通过", "审核中"]
+                }
+            ],
+            "default_cell_check": {
+                "not_empty": false,
+                "allowed_values": null
+            }
+        }
+    ],
+    "content_under_heading_rules": [
+        {
+            "heading_text_contains": "第一章",
+            "check_next_paragraphs": 1,
+            "not_empty": true
+        },
+        {
+            "heading_text_exact": "风险提示",
+            "check_next_paragraphs": 1,
+            "not_empty": true
+        }
+    ]
+}

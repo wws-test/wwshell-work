@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "h3c-doc-checker"
+version = "1.0.0"
+description = "H3C Word文档规范检查工具"
+authors = ["Your Name <your@email.com>"]
+packages = [{ include = "h3c_doc_checker" }]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.12"
+python-docx = "*"
+ttkthemes = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

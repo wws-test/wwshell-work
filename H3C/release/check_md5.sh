@@ -1,11 +1,12 @@
 #!/bin/bash
 #############################################################################
 # 脚本名称: check_md5.sh
-# 描述: 自动检查指定目录下所有md5sums.txt文件的校验结果
+# 描述: 自动检查指定目录下所有md5sums.txt文件的校验结果，并验证Vendor目录结构是否符合规范
 #
 # 功能:
 #   - 遍历 /HDD_Raid/SVN_MODEL_REPO 下的 Model 和 Vendor 目录
 #   - 查找并验证所有 md5sums.txt 文件
+#   - 验证Vendor目录结构是否符合JSON Schema定义的规范
 #   - 生成详细的检查报告
 #   - 记录所有检查结果到日志文件
 #
@@ -22,6 +23,9 @@
 # 依赖:
 #   - md5sum 命令
 #   - find 命令
+#   - tree 命令 (用于生成目录结构JSON)
+#   - jq 命令 (用于处理JSON)
+#   - python3 (用于目录结构验证)
 #   - 需要对日志目录的写入权限
 ## 例如每天凌晨2点执行
 #  0 2 * * * /HDD_Raid/util_script/check_md5.sh
@@ -60,10 +64,33 @@ for file in "$MODEL_SUCCESS_COUNT_FILE" "$MODEL_FAILED_COUNT_FILE" "$MODEL_MISSI
     echo "0" > "$file"
 done
 
+# 设置目录结构验证相关的变量
+TREE_JSON="/HDD_Raid/util_script/tmp/vendor_tree.json"
+SCHEMA_FILE="/HDD_Raid/util_script/vendor_schema.json"
+PYTHON_VALIDATOR="/HDD_Raid/util_script/validate_vendor_structure.py"
+
 # 写入日志头部
 echo "MD5 Checksum Verification Report - ${DATE}" > "$LOG_FILE"
 echo "=========================================" >> "$LOG_FILE"
 echo "" >> "$LOG_FILE"
+
+# 在主程序开始之前添加目录结构验证
+echo "正在验证Vendor目录结构..." >> "$LOG_FILE"
+if [ -d "/HDD_Raid/SVN_MODEL_REPO/Vendor" ]; then
+    # 生成目录结构的JSON
+    if ! tree -J /HDD_Raid/SVN_MODEL_REPO/Vendor | jq . > "$TREE_JSON"; then
+        echo "错误：无法生成目录结构JSON" >> "$LOG_FILE"
+        exit 1
+    fi
+
+    # 验证目录结构
+    if ! python3 "$PYTHON_VALIDATOR" "$TREE_JSON" "$SCHEMA_FILE"; then
+        echo "错误：Vendor目录结构验证失败" >> "$LOG_FILE"
+        echo "请检查目录结构是否符合规范" >> "$LOG_FILE"
+        exit 1
+    fi
+    echo "Vendor目录结构验证通过" >> "$LOG_FILE"
+fi
 
 # 遍历目录函数
 check_directory() {

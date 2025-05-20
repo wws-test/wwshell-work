@@ -49,7 +49,7 @@ declare -r LOG_WARNING="WARNING"
 declare -r LOG_ERROR="ERROR"
 
 # 日志文件路径
-declare -r LOG_DIR="logs"
+declare -r LOG_DIR="/HDD_Raid/util_script/logs"
 declare -r LOG_FILE="${LOG_DIR}/svn_operations.log"
 
 # 创建日志目录
