@@ -7,7 +7,7 @@ packages = [{ include = "h3c_doc_checker" }]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.12"
-python-docx = "*"
+python-docx = "1.1.0"
 ttkthemes = "*"
 
 [build-system]

@@ -59,29 +59,42 @@ def launch_gui():
 
 def main(config_path_str: str = None):
     try:
-        # 使用 importlib.resources 获取默认配置路径
+        # 使用外部 config 目录下的默认配置
         logging.info("开始加载配置文件")
         if not config_path_str:
             logging.debug("使用默认配置文件")
-            with importlib.resources.path("h3c_doc_checker.config", "default_config.json") as p:
-                effective_config_path = p
-                logging.info(f"默认配置文件路径: {effective_config_path}")
+            effective_config_path = Path(__file__).parent.parent / "config" / "default_config.json"
+            logging.info(f"默认配置文件路径: {effective_config_path}")
         else:
             logging.debug(f"使用指定配置文件: {config_path_str}")
             effective_config_path = Path(config_path_str)
+        logging.info(f"加载配置完成: {effective_config_path}")
         current_config = Config(effective_config_path)
         current_config.validate()
+        logging.info(f"配置校验通过，文档路径: {current_config.document_path}")
         doc = load_document(current_config.document_path)
+        logging.info("Word文档加载成功")
         results = []
         if current_config.title_rules:
+            logging.info("开始标题检查...")
             checker = TitleChecker(doc, current_config.title_rules)
-            results.append(checker.check_title())
+            res = checker.check_title()
+            logging.info(f"标题检查结果: {res.__dict__}")
+            results.append(res)
         if current_config.table_rules:
+            logging.info("开始表格检查...")
             checker = TableChecker(doc, current_config.table_rules)
-            results.extend(checker.check_tables())
+            table_results = checker.check_tables()
+            for r in table_results:
+                logging.info(f"表格检查结果: {r.__dict__}")
+            results.extend(table_results)
         if current_config.content_rules:
+            logging.info("开始正文检查...")
             checker = ContentChecker(doc, current_config.content_rules)
-            results.extend(checker.check_contents())
+            content_results = checker.check_contents()
+            for r in content_results:
+                logging.info(f"正文检查结果: {r.__dict__}")
+            results.extend(content_results)
         print_results(results)
         sys.exit(0 if all(r.passed for r in results) else 1)
     except Exception as e:
@@ -101,8 +114,8 @@ def print_results(results: List[CheckResult]):
 
 def run_check(doc_path_str: str, config_path_str: str = None) -> List[CheckResult]:
     if not config_path_str:
-        with importlib.resources.path("h3c_doc_checker.config", "default_config.json") as p:
-            effective_config_path = p
+        # 使用外部 config 目录下的默认配置
+        effective_config_path = Path(__file__).parent.parent / "config" / "default_config.json"
     else:
         effective_config_path = Path(config_path_str)
     current_config = Config(effective_config_path)

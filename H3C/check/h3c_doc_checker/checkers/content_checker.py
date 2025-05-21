@@ -1,3 +1,4 @@
+"""正文内容检查模块"""
 from typing import Dict, List, Optional, Tuple, Any
 from docx.document import Document
 from docx.text.paragraph import Paragraph
@@ -12,108 +13,82 @@ class ContentChecker:
         
         Args:
             doc: Word文档对象
-            rules: 内容检查规则列表，每个规则是一个包含以下可选字段的字典：
-                  - pattern: 要匹配的文本模式（字符串或正则表达式）
-                  - style_name: 期望的段落样式名称
-                  - forbidden_words: 禁止使用的词语列表
-                  - required_words: 必须包含的词语列表
-                  - min_length: 段落最小长度
-                  - max_length: 段落最大长度
+            rules: 内容检查规则列表
         """
         self.doc = doc
         self.rules = rules
         
-    def check_contents(self) -> List[CheckResult]:
-        """
-        检查文档中的内容
+    def get_paragraphs_after_heading(self, heading_text: str, exact_match: bool = True, count: int = 1) -> List[Paragraph]:
+        """获取标题后的指定数量段落"""
+        paragraphs = []
+        heading_found = False
+        collected = 0
         
-        Returns:
-            List[CheckResult]: 检查结果列表
-        """
-        if not self.doc.paragraphs:
+        for para in self.doc.paragraphs:
+            text = para.text.strip()
+            if not heading_found:
+                # 查找标题
+                if (exact_match and text == heading_text) or (not exact_match and heading_text in text):
+                    heading_found = True
+                continue
+            
+            # 已找到标题，开始收集后续段落
+            if para.style.name and para.style.name.startswith(("Heading", "标题")):
+                break
+            
+            if collected < count:
+                paragraphs.append(para)
+                collected += 1
+            else:
+                break
+                
+        return paragraphs
+        
+    def check_contents(self) -> List[CheckResult]:
+        """检查文档内容"""
+        if not self.rules:
             return [CheckResult(
-                passed=False,
-                message="文档中未找到任何内容",
-                location="整个文档"
+                passed=True,
+                message="没有正文检查规则",
+                details={"location": "配置文件"}
             )]
             
         results = []
-        for i, rule in enumerate(self.rules):
-            # 跳过第一个段落（标题）
-            for j, para in enumerate(self.doc.paragraphs[1:], 1):
-                text = para.text.strip()
-                location = f"第{j}段"
+        for rule in self.rules:
+            heading_text = rule.get("heading_text_exact", "").strip()
+            check_count = rule.get("check_next_paragraphs", 1)
+            
+            # 获取并检查段落
+            paragraphs = self.get_paragraphs_after_heading(heading_text, True, check_count)
+            
+            if not paragraphs:
+                results.append(CheckResult(
+                    passed=False,
+                    message=f"标题 '{heading_text}' 后未找到任何段落",
+                    details={"location": heading_text}
+                ))
+                continue
                 
-                # 检查段落样式
-                if "style_name" in rule:
-                    expected = rule["style_name"]
-                    actual = get_paragraph_style_name(para)
-                    if expected != actual:
-                        results.append(CheckResult(
-                            passed=False,
-                            message=f"段落样式不匹配\n期望: {expected}\n实际: {actual}",
-                            location=location
-                        ))
-                        continue
-                
-                # 检查文本模式
-                if "pattern" in rule:
-                    import re
-                    pattern = rule["pattern"]
-                    if not re.search(pattern, text):
-                        results.append(CheckResult(
-                            passed=False,
-                            message=f"段落文本不符合指定模式: {pattern}",
-                            location=location
-                        ))
-                        continue
-                
-                # 检查禁用词
-                if "forbidden_words" in rule:
-                    forbidden = rule["forbidden_words"]
-                    found = [word for word in forbidden if word in text]
-                    if found:
-                        results.append(CheckResult(
-                            passed=False,
-                            message=f"段落包含禁用词: {', '.join(found)}",
-                            location=location
-                        ))
-                        continue
-                
-                # 检查必需词
-                if "required_words" in rule:
-                    required = rule["required_words"]
-                    missing = [word for word in required if word not in text]
-                    if missing:
-                        results.append(CheckResult(
-                            passed=False,
-                            message=f"段落缺少必需词: {', '.join(missing)}",
-                            location=location
-                        ))
-                        continue
-                
-                # 检查长度限制
-                if "min_length" in rule and len(text) < rule["min_length"]:
-                    results.append(CheckResult(
-                        passed=False,
-                        message=f"段落长度过短\n期望最小长度: {rule['min_length']}\n实际长度: {len(text)}",
-                        location=location
-                    ))
-                    continue
-                    
-                if "max_length" in rule and len(text) > rule["max_length"]:
-                    results.append(CheckResult(
-                        passed=False,
-                        message=f"段落长度过长\n期望最大长度: {rule['max_length']}\n实际长度: {len(text)}",
-                        location=location
-                    ))
-                    continue
-                
-                # 如果通过了所有检查
+            # 检查是否为空
+            empty_paragraphs = []
+            for i, para in enumerate(paragraphs, 1):
+                if rule.get("not_empty", True) and not para.text.strip():
+                    empty_paragraphs.append(i)
+            
+            if empty_paragraphs:
+                results.append(CheckResult(
+                    passed=False,
+                    message=f"标题 '{heading_text}' 后的第 {', '.join(map(str, empty_paragraphs))} 个段落为空",
+                    details={
+                        "location": heading_text,
+                        "empty_paragraphs": empty_paragraphs
+                    }
+                ))
+            else:
                 results.append(CheckResult(
                     passed=True,
-                    message=f"内容检查通过",
-                    location=location
+                    message=f"标题 '{heading_text}' 下的正文检查通过",
+                    details={"location": heading_text}
                 ))
                 
         return results

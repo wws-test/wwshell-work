@@ -46,9 +46,19 @@ class Config:
         if not isinstance(rules, dict):
             raise ValueError("title_rules 必须是一个对象")
             
-        # 检查标题规则必需字段
-        if not any(key in rules for key in ["expected_text", "style_name"]):
-            raise ValueError("title_rules 必须至少包含 expected_text 或 style_name 之一")
+        # 检查expected_titles是否存在且为数组
+        if "expected_titles" not in rules:
+            raise ValueError("title_rules 必须包含 expected_titles 字段")
+        if not isinstance(rules["expected_titles"], list):
+            raise ValueError("expected_titles 必须是一个数组")
+            
+        # 检查每个标题规则
+        for i, title_rule in enumerate(rules["expected_titles"]):
+            if not isinstance(title_rule, dict):
+                raise ValueError(f"标题规则 #{i+1} 必须是一个对象")
+            if "text" not in title_rule:
+                raise ValueError(f"标题规则 #{i+1} 必须包含 text 字段")
+            # style_name 和 required 是可选的
             
     def _validate_table_rules(self, rules: List[Dict[str, Any]]) -> None:
         """校验表格规则配置"""

@@ -1,4 +1,4 @@
-python-docx==0.8.11
+python-docx
 pyyaml==6.0.1
 colorama==0.4.6
 jieba==0.42.1

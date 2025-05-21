@@ -1,154 +1,56 @@
-**项目目标：**
-开发一个脚本，用于自动化检查Word文档是否符合预定义的模板规范。
+# H3C Word文档规范自动检查工具
 
-**核心检查点：**
-1.  **标题检查：** 验证标题的文字内容和字数（或字符数）。
-2.  **表格内容检查：**
-    *   确保指定表格单元格内容不为空。
-    *   确保指定表格单元格内容在预设的允许值列表（List）中。
-3.  **标题下正文检查：** 确保特定标题下的第一段或几段正文内容不为空。
+## 项目简介
+本项目旨在自动化检查Word文档是否符合预定义的模板规范，支持标题、表格、正文等多维度校验，适用于企业文档标准化场景。提供命令行与现代GUI界面，支持详细报告导出和一键打包为独立可执行文件。
 
-**技术选型：**
-*   **编程语言：** Python (因其强大的文本处理能力和丰富的第三方库)
-*   **核心库：** `python-docx` (用于读取和解析 .docx 文件内容和结构)
-*   **辅助库 (可选)：**
-    *   `openpyxl` 或 `pandas` (如果允许值列表或配置存储在Excel中)
-    *   `json` 或 `yaml` (如果配置存储在JSON或YAML文件中)
+## 主要功能
+- 标题内容与格式自动检查
+- 表格内容、允许值、非空等多规则校验
+- 指定标题下正文内容检查
+- 支持自定义JSON配置模板
+- 检查结果导出为HTML报告
+- 现代美观的图形界面
+- 支持打包为Windows独立EXE
 
-**实现方案步骤：**
+## 快速开始
+1. 安装依赖（推荐Poetry）
+   ```powershell
+   cd H3C/check
+   poetry install
+   ```
+2. 运行（开发环境）
+   ```powershell
+   poetry run python -m h3c_doc_checker
+   # 或
+   python -m h3c_doc_checker
+   ```
+3. 打包为独立EXE（可选）
+   ```powershell
+   pyinstaller --onefile -w -n docx_checker h3c_doc_checker/__main__.py
+   # 生成的可执行文件在dist/目录下
+   ```
 
-**一、 配置文件设计**
-为了使脚本具有通用性和可配置性，我们将检查规则定义在一个外部文件或脚本内部的配置结构中。
+## 目录结构
+- h3c_doc_checker/  主程序包（含核心逻辑、GUI、检查器、配置等）
+- config/           默认配置文件
+- build/            打包产物
+- resources/        图标等资源
+- src/              代码副本（如有）
 
-*   **配置方式：**
-    *   **Python字典/对象 (脚本内硬编码)：** 简单直接，适合初期或固定模板。
-    *   **JSON/YAML文件：** 易于人工阅读和修改，脚本读取解析。
-    *   **Excel文件：** 对于非技术人员友好，但解析略复杂。
+详细结构与说明见 [h3c_doc_checker/README.md](h3c_doc_checker/README.md)
 
-*   **配置内容示例 (以Python字典为例)：**
-    ```python
-    CONFIG = {
-        "document_to_check": "path/to/your/document.docx",
-        "title_rules": {
-            "expected_text": "公司年度报告",       # 期望的标题文字 (可选, None则不检查文字)
-            "style_name": "Heading 1",           # 标题样式名 (可选, 用于定位标题)
-            "min_length": 5,                     # 最小长度 (字数或字符数)
-            "max_length": 20,                    # 最大长度
-            "check_by_paragraph_index": 0        # 也可以按段落索引定位 (如果style_name不确定)
-        },
-        "table_rules": [ # 列表，可以定义多个表格的规则
-            {
-                "table_index": 0,                # 表格在文档中的索引 (从0开始)
-                "skip_header_rows": 1,           # 跳过表头行数
-                "cell_checks": [
-                    {
-                        "row": 0, "col": 0,      # 单元格坐标 (相对于跳过表头后的表格)
-                        "not_empty": True,
-                        "allowed_values": ["姓名", "负责人"]
-                    },
-                    {
-                        "row": 0, "col": 1,
-                        "not_empty": True,
-                        "allowed_values": None   # None表示不检查允许值列表，只检查非空
-                    },
-                    {   # 对整列或整行进行规则定义 (更高级)
-                        "col": 2, # 检查第3列所有单元格 (除表头)
-                        "not_empty": True,
-                        "allowed_values": ["通过", "未通过", "审核中"]
-                    }
-                ],
-                "default_cell_check": { # 应用于未被cell_checks显式定义的单元格
-                    "not_empty": False, # 默认允许为空
-                    "allowed_values": None
-                }
-            }
-        ],
-        "content_under_heading_rules": [ # 列表，检查多个标题下的正文
-            {
-                "heading_text_contains": "第一章", # 包含此文字的标题
-                # "heading_style": "Heading 2",   # 也可以结合样式定位
-                "check_next_paragraphs": 1,     # 检查该标题后的1个段落
-                "not_empty": True
-            },
-            {
-                "heading_text_exact": "风险提示", # 精确匹配此文字的标题
-                "check_next_paragraphs": 1,
-                "not_empty": True
-            }
-        ]
-    }
-    ```
+## 配置说明
+- 配置文件位于 `h3c_doc_checker/config/default_config.json`
+- 支持自定义检查规则，详见[详细配置说明](h3c_doc_checker/README.md)
 
-**二、 脚本主要功能模块**
+## 依赖
+- Python 3.8+
+- python-docx
+- 其他依赖见 `pyproject.toml` 或 `requirements.txt`
 
-1.  **加载文档模块：**
-    *   使用 `python-docx` 的 `Document()` 方法加载指定的Word文档。
-    *   进行基本的错误处理（如文件不存在、文件格式错误）。
+## 贡献与维护
+欢迎提交Issue和PR，详细开发文档与技术方案见 [h3c_doc_checker/README.md](h3c_doc_checker/README.md)
 
-2.  **标题检查模块 (`check_title`)：**
-    *   **定位标题：**
-        *   优先根据配置中的 `style_name` 查找具有该样式的段落。
-        *   如果 `style_name` 未提供或未找到，尝试根据 `check_by_paragraph_index` 获取段落。
-        *   如果 `expected_text` 提供，也可以遍历段落查找文本匹配的段落。
-    *   **提取文本：** 获取定位到的标题段落的文本内容 (`paragraph.text`)。
-    *   **文字内容检查：** 如果 `expected_text` 在配置中，比较提取的文本是否与之匹配。
-    *   **数量检查：** 计算提取文本的长度（中文字符数，或简单按空格分的词数）。与配置中的 `min_length` 和 `max_length` 比较。
-    *   **记录结果：** 记录检查通过或失败，以及失败原因。
+---
 
-3.  **表格内容检查模块 (`check_tables`)：**
-    *   **定位表格：** 根据配置中的 `table_index` 获取文档中的表格对象 (`document.tables[index]`)。
-    *   **遍历单元格：**
-        *   根据 `skip_header_rows` 跳过表头。
-        *   嵌套循环遍历表格的行 (`table.rows`) 和单元格 (`row.cells`)。
-    *   **应用规则：**
-        *   对每个单元格，根据其坐标 (`row_index`, `col_index`) 查找 `cell_checks` 中是否有特定规则。
-        *   若无特定规则，应用 `default_cell_check` 规则。
-    *   **非空检查：** 获取单元格文本 (`cell.text.strip()`)，判断是否为空。
-    *   **允许值检查：** 如果配置了 `allowed_values` 列表，判断单元格文本是否在该列表中。
-    *   **记录结果：** 记录每个单元格的检查结果，或汇总表格的检查结果。
-
-4.  **标题下正文检查模块 (`check_content_under_headings`)：**
-    *   **定位标题段落：**
-        *   遍历文档中的所有段落 (`document.paragraphs`)。
-        *   根据配置中的 `heading_text_contains` (模糊匹配) 或 `heading_text_exact` (精确匹配) 以及可选的 `heading_style` 来定位目标标题段落。
-    *   **定位正文段落：**
-        *   一旦找到标题段落，获取其后的 `check_next_paragraphs` 个段落作为待检查的正文。
-        *   需要注意处理边界情况（如标题后段落数不足、遇到下一个不同级别标题等）。一种策略是收集标题之后，直到遇到下一个同级或更高级别标题之前的所有非空文本段落。
-    *   **非空检查：** 获取正文段落的文本内容，合并后去除首尾空格，判断是否为空。
-    *   **记录结果：** 记录检查结果。
-
-5.  **结果报告模块：**
-    *   汇总所有检查模块的结果。
-    *   以清晰的方式输出报告：
-        *   可以是控制台打印。
-        *   可以是生成一个文本文件或HTML报告。
-        *   报告应包含每个检查项的通过/失败状态及详细信息（如哪个标题不合格，哪个表格的哪个单元格有问题）。
-
-**三、 核心逻辑流程**
-
-1.  **读取配置：** 脚本启动后，首先加载配置文件或内部配置结构。
-2.  **加载Word文档：** 根据配置中的路径加载目标文档。
-3.  **执行检查：**
-    *   调用 `check_title` 函数，传入文档对象和标题规则。
-    *   遍历 `table_rules`，对每个表格规则调用 `check_tables` 函数。
-    *   遍历 `content_under_heading_rules`，对每个规则调用 `check_content_under_headings` 函数。
-4.  **输出报告：** 汇总所有检查结果并展示。
-
-**四、 关键技术点和注意事项**
-
-*   **定位元素：**
-    *   **样式：** Word中的样式是定位元素（尤其是标题）的可靠方式，但需确保模板中的样式名称与配置一致。样式名可能因Word版本和语言环境而异（如 "Heading 1" vs "标题 1"）。
-    *   **文本内容：** 可作为备选或补充定位方式。
-    *   **索引：** 对于表格和段落，索引是最直接的定位，但如果文档结构经常变动则不够鲁棒。
-*   **文本提取：** `paragraph.text` 和 `cell.text` 提取的是纯文本，会丢失格式信息。
-*   **中文字符处理：** Python默认支持UTF-8，处理中文字符通常没有问题。字数统计时，`len()` 直接获取的是字符数。若需按“词”统计，则需要引入中文分词库 (如 `jieba`)。
-*   **表格复杂性：** `python-docx` 对合并单元格的处理有限。如果模板包含复杂合并单元格，检查逻辑会更复杂，可能需要更底层的XML操作或简化检查范围。
-*   **“正文”的定义：** “标题下的正文”需要明确定义范围。是仅指紧随其后的第一个段落，还是直到下一个标题之前的所有内容？配置中应能灵活定义。
-*   **迭代文档元素：** `document.paragraphs` 和 `document.tables` 分别获取所有段落和表格。若要按文档流顺序处理段落和表格混合的情况（如检查标题A下的内容，直到标题B），需要遍历 `document.element.body` 下的子元素，并判断其类型是段落 (`CT_P`) 还是表格 (`CT_Tbl`)。
-
-**五、 预期产出**
-一个Python脚本，能够：
-1.  根据配置文件执行检查。
-2.  输出一份检查报告，明确指出哪些项符合模板，哪些项不符合，并给出具体原因。
-
-这个技术方案提供了一个结构化的方法来构建你的Word模板检查脚本。在实际编码前，进一步细化配置项和边界条件处理会非常有帮助。
+> 技术实现与详细方案请参考本目录下原有技术文档。

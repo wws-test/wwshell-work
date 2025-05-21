@@ -111,19 +111,19 @@ class CheckerGUI:
         # 获取配置路径
         config_path = self.config_path.get().strip()
         if not config_path:
-            # 使用默认配置
-            with importlib.resources.path("h3c_doc_checker.config", "default_config.json") as p:
-                config_path = str(p)
+            # 使用外部 config 目录下的默认配置
+            config_path = str(Path(__file__).parent.parent / "config" / "default_config.json")
                 
         try:
             # 更新状态
             self.status_label.config(text="正在检查...")
             self.root.update()
-            
-            # 运行检查
+            logging.info(f"开始检查: doc_path={doc_path}, config_path={config_path}")
             from h3c_doc_checker.main import run_check
             results = run_check(doc_path, config_path)
-            
+            logging.info(f"检查完成，结果数量: {len(results)}")
+            for r in results:
+                logging.info(f"检查项: {r.__dict__}")
             # 显示结果
             self.display_results(results)
             

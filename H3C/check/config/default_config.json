@@ -1,49 +1,69 @@
 {
     "document_to_check": "template.docx",
     "title_rules": {
-        "expected_text": "测试工具版本",
-        "style_name": "Heading 4",
-        "min_length": 6,
-        "max_length": 20,
-        "check_by_paragraph_index": 0
+        "expected_titles": [
+            {
+                "text": "测试工具版本",
+                "style_name": "Heading 4",
+                "required": true
+            },
+            {
+                "text": "适用产品",
+                "style_name": "Heading 4",
+                "required": true
+            },
+            {
+                "text": "BIOS设置",
+                "style_name": "Heading 4",
+                "required": true
+            },
+            {
+                "text": "OS设置",
+                "style_name": "Heading 4",
+                "required": true
+            },
+            {
+                "text": "环境部署",
+                "style_name": "Heading 4",
+                "required": true
+            },
+            {
+                "text": "测试执行",
+                "style_name": "Heading 4",
+                "required": true
+            }
+        ]
     },
     "table_rules": [
         {
+            "heading_text": "测试工具版本",
             "table_index": 0,
-            "skip_header_rows": 1,
-            "cell_checks": [
-                {
-                    "row": 0,
-                    "col": 0,
-                    "not_empty": true,
-                    "allowed_values": ["姓名", "负责人"]
-                },
-                {
-                    "row": 0,
-                    "col": 1,
-                    "not_empty": true,
-                    "allowed_values": null
-                },
-                {
-                    "col": 2,
-                    "not_empty": true,
-                    "allowed_values": ["通过", "未通过", "审核中"]
-                }
-            ],
-            "default_cell_check": {
-                "not_empty": false,
-                "allowed_values": null
-            }
+            "all_cells_not_empty": true
+        },
+        {
+            "heading_text": "适用产品",
+            "table_index": 0,
+            "all_cells_not_empty": true
         }
     ],
     "content_under_heading_rules": [
         {
-            "heading_text_contains": "第一章",
+            "heading_text_exact": "BIOS设置",
             "check_next_paragraphs": 1,
             "not_empty": true
         },
         {
-            "heading_text_exact": "风险提示",
+            "heading_text_exact": "OS设置",
+            "check_next_paragraphs": 1,
+            "not_empty": true
+        },
+        {
+            "heading_text_exact": "环境部署",
+            "check_next_paragraphs": 1,
+            "not_empty": true
+        },
+        {
+            "heading_text_exact": "测试执行",
             "check_next_paragraphs": 1,
             "not_empty": true
         }
