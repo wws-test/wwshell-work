@@ -10,9 +10,24 @@ class Config:
     def __init__(self, config_path: str | Path):
         self.config_path = Path(config_path)
         self.config_data = self._load_config()
-        
+    @staticmethod
+    def load_default_config() -> Dict[str, Any]:
+        """加载默认配置文件"""
+        # 获取程序目录中的默认配置
+        try:
+            import importlib.resources
+            with importlib.resources.files('h3c_doc_checker.config').joinpath('default_config.json').open('r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            raise ValueError(f"无法加载默认配置文件: {str(e)}")
+
     def _load_config(self) -> Dict[str, Any]:
         """加载配置文件"""
+        # 如果配置路径是默认值，使用内置的默认配置
+        if str(self.config_path) == str(Path("config") / "default_config.json"):
+            return self.load_default_config()
+
+        # 如果指定了配置文件，则使用指定的配置
         if not self.config_path.exists():
             raise FileNotFoundError(f"配置文件不存在: {self.config_path}")
         
@@ -59,7 +74,6 @@ class Config:
             if "text" not in title_rule:
                 raise ValueError(f"标题规则 #{i+1} 必须包含 text 字段")
             # style_name 和 required 是可选的
-            
     def _validate_table_rules(self, rules: List[Dict[str, Any]]) -> None:
         """校验表格规则配置"""
         if not isinstance(rules, list):
@@ -70,10 +84,25 @@ class Config:
                 raise ValueError("每个表格规则必须是一个对象")
                 
             # 检查表格规则必需字段
-            required = ["table_index"]
+            required = ["heading_text", "table_index"]
             for field in required:
                 if field not in rule:
                     raise ValueError(f"表格规则缺少必需字段: {field}")
+                    
+            # 检查列值校验配置
+            if "column_value_check" in rule:
+                column_check = rule["column_value_check"]
+                if not isinstance(column_check, dict):
+                    raise ValueError("column_value_check 必须是一个对象")
+                
+                if "column_header" not in column_check:
+                    raise ValueError("column_value_check 必须包含 column_header 字段")
+                    
+                if "allowed_values" not in column_check:
+                    raise ValueError("column_value_check 必须包含 allowed_values 字段")
+                    
+                if not isinstance(column_check["allowed_values"], list):
+                    raise ValueError("allowed_values 必须是一个数组")
                     
     def _validate_content_rules(self, rules: List[Dict[str, Any]]) -> None:
         """校验正文规则配置"""

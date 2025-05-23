@@ -109,16 +109,13 @@ class TableChecker:
             current_location_detail = f"{heading_text}#表格{table_index + 1}"
             
             # 标志，用于跟踪此特定表格规则的所有检查是否都通过
-            all_checks_for_this_table_passed = True 
-
-            # 检查单元格是否为空
+            all_checks_for_this_table_passed = True            # 检查单元格是否为空
             if rule.get("all_cells_not_empty", False):
                 empty_cells = []
                 for r_idx, row in enumerate(table.rows):
                     for c_idx, cell in enumerate(row.cells):
                         if not cell.text.strip():
                             empty_cells.append((r_idx + 1, c_idx + 1)) # 行号和列号从1开始
-                
                 if empty_cells:
                     all_checks_for_this_table_passed = False # 标记此检查失败
                     results.append(CheckResult(
@@ -130,8 +127,47 @@ class TableChecker:
                             "empty_cells": empty_cells
                         }
                     ))
-                    # 注意：如果希望即使此检查失败也继续对此规则进行其他检查（如果将来添加），
-                    # 则不应在此处 `continue`。当前设计是，如果此检查失败，则此规则的评估结束。
+
+            # 检查列值是否在允许的范围内
+            if "column_value_check" in rule:
+                column_check = rule["column_value_check"]
+                header = column_check["column_header"]
+                allowed_values = column_check["allowed_values"]
+                
+                # 找到指定列的索引
+                header_row = table.rows[0]
+                column_index = None
+                for i, cell in enumerate(header_row.cells):
+                    if cell.text.strip() == header:
+                        column_index = i
+                        break
+                
+                if column_index is None:
+                    all_checks_for_this_table_passed = False
+                    results.append(CheckResult(
+                        passed=False,
+                        message=f"标题 '{heading_text}' 下表格未找到列 '{header}'",
+                        details={"location": current_location_detail}
+                    ))
+                    continue
+                
+                # 检查该列中的所有值
+                invalid_values = []
+                for row_idx, row in enumerate(table.rows[1:], 1):  # 跳过表头行
+                    value = row.cells[column_index].text.strip()
+                    if value and value not in allowed_values:
+                        invalid_values.append((row_idx + 1, value))  # +1 因为跳过了表头行
+                        if invalid_values:
+                            all_checks_for_this_table_passed = False
+                            results.append(CheckResult(
+                        passed=False,
+                        message=f"标题 '{heading_text}' 下表格中'{header}'列包含非法值:\n" + 
+                                "\n".join(f"- 第{row}行: {value}" for row, value in invalid_values),
+                        details={
+                            "location": current_location_detail,
+                            "invalid_values": invalid_values
+                        }
+                    ))
             
             # 未来可以在此添加针对同一表格和规则的其他检查
             # 例如: if rule.get("check_column_count"): ... ; if failed, set all_checks_for_this_table_passed = False

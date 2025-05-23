@@ -63,7 +63,7 @@ def main(config_path_str: str = None):
         logging.info("开始加载配置文件")
         if not config_path_str:
             logging.debug("使用默认配置文件")
-            effective_config_path = Path(__file__).parent.parent / "config" / "default_config.json"
+            effective_config_path = Path("config") / "default_config.json"  # 使用相对路径，触发默认配置加载
             logging.info(f"默认配置文件路径: {effective_config_path}")
         else:
             logging.debug(f"使用指定配置文件: {config_path_str}")
@@ -115,7 +115,7 @@ def print_results(results: List[CheckResult]):
 def run_check(doc_path_str: str, config_path_str: str = None) -> List[CheckResult]:
     if not config_path_str:
         # 使用外部 config 目录下的默认配置
-        effective_config_path = Path(__file__).parent.parent / "config" / "default_config.json"
+        effective_config_path = Path("config") / "default_config.json"  # 使用相对路径，触发默认配置加载
     else:
         effective_config_path = Path(config_path_str)
     current_config = Config(effective_config_path)
