@@ -26,16 +26,34 @@ class ContentChecker:
         
         for para in self.doc.paragraphs:
             text = para.text.strip()
+            
             if not heading_found:
                 # 查找标题
                 if (exact_match and text == heading_text) or (not exact_match and heading_text in text):
                     heading_found = True
+                    # 找到标题后立即检查下一段落
+                    continue
                 continue
             
-            # 已找到标题，开始收集后续段落
-            if para.style.name and para.style.name.startswith(("Heading", "标题")):
-                break
+            # 跳过空行
+            if not text and not para.runs:
+                continue
+                
+            # 如果遇到同级别或更高级别的标题，停止收集
+            if para.style and para.style.name and para.style.name.startswith(("Heading", "标题")):
+                # 获取当前标题级别
+                current_heading_level = 0
+                if para.style.name.startswith("Heading ") and len(para.style.name) > 8:
+                    try:
+                        current_heading_level = int(para.style.name[8:])
+                    except (ValueError, IndexError):
+                        pass
+                
+                # 如果找到同级别或更高级别的标题，停止收集
+                if current_heading_level > 0 and current_heading_level <= 4:  # 假设4是当前标题的级别
+                    break
             
+            # 收集段落
             if collected < count:
                 paragraphs.append(para)
                 collected += 1

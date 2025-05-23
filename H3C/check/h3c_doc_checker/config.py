@@ -25,17 +25,23 @@ class Config:
         """加载配置文件"""
         # 如果配置路径是默认值，使用内置的默认配置
         if str(self.config_path) == str(Path("config") / "default_config.json"):
-            return self.load_default_config()
-
-        # 如果指定了配置文件，则使用指定的配置
-        if not self.config_path.exists():
-            raise FileNotFoundError(f"配置文件不存在: {self.config_path}")
+            config_data = self.load_default_config()
+        else:
+            # 如果指定了配置文件，则使用指定的配置
+            if not self.config_path.exists():
+                raise FileNotFoundError(f"配置文件不存在: {self.config_path}")
+            
+            try:
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    config_data = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"配置文件格式错误: {e}")
         
-        try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"配置文件格式错误: {e}")
+        # 兼容旧版配置键名
+        if 'content_under_heading_rules' in config_data and 'content_rules' not in config_data:
+            config_data['content_rules'] = config_data['content_under_heading_rules']
+            
+        return config_data
             
     def validate(self) -> None:
         """校验配置有效性"""
@@ -55,6 +61,9 @@ class Config:
             self._validate_table_rules(self.config_data["table_rules"])
         if "content_rules" in self.config_data:
             self._validate_content_rules(self.config_data["content_rules"])
+        # 兼容 content_under_heading_rules 键名
+        elif "content_under_heading_rules" in self.config_data:
+            self._validate_content_rules(self.config_data["content_under_heading_rules"])
     
     def _validate_title_rules(self, rules: Dict[str, Any]) -> None:
         """校验标题规则配置"""
