@@ -38,6 +38,7 @@ class TitleChecker:
         # 获取所有段落及其文本
         if not self.doc.paragraphs:
             return CheckResult(
+                type="标题检查",
                 passed=False,
                 message="文档为空，未找到任何标题",
                 details={"location": "整个文档"}
@@ -47,6 +48,7 @@ class TitleChecker:
         expected_titles = self.rules.get("expected_titles", [])
         if not expected_titles:
             return CheckResult(
+                type="标题检查",
                 passed=False,
                 message="配置文件中未定义标题规则",
                 details={"location": "配置文件"}
@@ -79,6 +81,7 @@ class TitleChecker:
         # 返回检查结果
         if missing_titles:
             return CheckResult(
+                type="标题检查",
                 passed=False,
                 message=f"缺少必需的标题:\n{chr(10).join(f'- {title}' for title in missing_titles)}",
                 details={
@@ -88,6 +91,7 @@ class TitleChecker:
             )
         
         return CheckResult(
+            type="标题检查",
             passed=True,
             message="所有必需的标题检查通过",
             details={"location": "整个文档"}

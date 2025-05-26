@@ -66,6 +66,7 @@ class ContentChecker:
         """检查文档内容"""
         if not self.rules:
             return [CheckResult(
+                type="内容检查",
                 passed=True,
                 message="没有正文检查规则",
                 details={"location": "配置文件"}
@@ -81,6 +82,7 @@ class ContentChecker:
             
             if not paragraphs:
                 results.append(CheckResult(
+                    type="内容检查",
                     passed=False,
                     message=f"标题 '{heading_text}' 后未找到任何段落",
                     details={"location": heading_text}
@@ -95,6 +97,7 @@ class ContentChecker:
             
             if empty_paragraphs:
                 results.append(CheckResult(
+                    type="内容检查",
                     passed=False,
                     message=f"标题 '{heading_text}' 后的第 {', '.join(map(str, empty_paragraphs))} 个段落为空",
                     details={
@@ -104,6 +107,7 @@ class ContentChecker:
                 ))
             else:
                 results.append(CheckResult(
+                    type="内容检查",
                     passed=True,
                     message=f"标题 '{heading_text}' 下的正文检查通过",
                     details={"location": heading_text}

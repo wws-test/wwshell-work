@@ -64,6 +64,7 @@ class TableChecker:
         """检查文档中的表格"""
         if not self.rules:
             return [CheckResult(
+                type="表格检查",
                 passed=True,
                 message="没有表格检查规则",
                 details={"location": "配置文件"}
@@ -76,6 +77,7 @@ class TableChecker:
             # 确保规则中指定了 heading_text
             if not heading_text:
                 results.append(CheckResult(
+                    type="表格检查",
                     passed=False,
                     message="规则中 'heading_text' 未指定或为空。",
                     details={"rule_details": rule} # 提供规则详情以便调试
@@ -90,6 +92,7 @@ class TableChecker:
             # 检查是否找到表格
             if not tables:
                 results.append(CheckResult(
+                    type="表格检查",
                     passed=False,
                     message=f"在标题 '{heading_text}' 下未找到任何表格",
                     details={"location": heading_text}
@@ -99,6 +102,7 @@ class TableChecker:
             # 检查表格索引是否越界
             if table_index >= len(tables):
                 results.append(CheckResult(
+                    type="表格检查",
                     passed=False,
                     message=f"标题 '{heading_text}' 下只有 {len(tables)} 个表格，无法检查第 {table_index + 1} 个表格",
                     details={"location": f"{heading_text}#表格{table_index + 1}"}
@@ -112,13 +116,27 @@ class TableChecker:
             all_checks_for_this_table_passed = True            # 检查单元格是否为空
             if rule.get("all_cells_not_empty", False):
                 empty_cells = []
+                # 获取允许为空的列
+                allow_empty_columns = rule.get("column_value_check", {}).get("allow_empty_columns", [])
+                # 获取表头行，用于查找允许为空的列的索引
+                header_row = table.rows[0]
+                allow_empty_indices = []
+                for i, cell in enumerate(header_row.cells):
+                    if cell.text.strip() in allow_empty_columns:
+                        allow_empty_indices.append(i)
+                
+                # 检查非空
                 for r_idx, row in enumerate(table.rows):
                     for c_idx, cell in enumerate(row.cells):
+                        # 如果当前列允许为空，则跳过检查
+                        if c_idx in allow_empty_indices:
+                            continue
                         if not cell.text.strip():
                             empty_cells.append((r_idx + 1, c_idx + 1)) # 行号和列号从1开始
                 if empty_cells:
                     all_checks_for_this_table_passed = False # 标记此检查失败
                     results.append(CheckResult(
+                        type="表格检查",
                         passed=False,
                         message=f"标题 '{heading_text}' 下表格 (第 {table_index + 1} 个) 包含空单元格:\n" + 
                                 "\n".join(f"- 第{row}行第{col}列" for row, col in empty_cells),
@@ -145,6 +163,7 @@ class TableChecker:
                 if column_index is None:
                     all_checks_for_this_table_passed = False
                     results.append(CheckResult(
+                        type="表格检查",
                         passed=False,
                         message=f"标题 '{heading_text}' 下表格未找到列 '{header}'",
                         details={"location": current_location_detail}
@@ -160,6 +179,7 @@ class TableChecker:
                         if invalid_values:
                             all_checks_for_this_table_passed = False
                             results.append(CheckResult(
+                        type="表格检查",
                         passed=False,
                         message=f"标题 '{heading_text}' 下表格中'{header}'列包含非法值:\n" + 
                                 "\n".join(f"- 第{row}行: {value}" for row, value in invalid_values),
@@ -175,6 +195,7 @@ class TableChecker:
             # 如果此规则的所有检查都通过了
             if all_checks_for_this_table_passed:
                 results.append(CheckResult(
+                    type="表格检查",
                     passed=True,
                     message=f"标题 '{heading_text}' 下的表格 (第 {table_index + 1} 个) 检查通过",
                     details={"location": current_location_detail}

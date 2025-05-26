@@ -45,7 +45,36 @@
             "all_cells_not_empty": true,
             "column_value_check": {
                 "column_header": "加速卡",
-                "allowed_values": ["P800"]
+                "allowed_values": [
+                    "GPU-BR106B",
+                    "GPU-BR106C",
+                    "GPU-MLU370-X4",
+                    "GPU-MLU370-X8",
+                    "GPU-MLU590",
+                    "GPU-S60",
+                    "GPU-K100-AI",
+                    "GPU-BI-V100",
+                    "GPU-BI-V150",
+                    "GPU-BI-V150X",
+                    "GPU-MR-V50",
+                    "GPU-MR-V100",
+                    "GPU-P800 8-GPU",
+                    "GPU-P800",
+                    "GPU-R200",
+                    "GPU-R200-8F",
+                    "GPU-R300",
+                    "GPU-RG800 Pro",
+                    "GPU-RG800",
+                    "GPU-HP280",
+                    "GPU-C500",
+                    "GPU-C500X",
+                    "GPU-MXC550 8GPU",
+                    "GPU-S4000",
+                    "GPU-L20",
+                    "GPU-HGX H20 8-GPU",
+                    "GPU-S30"
+                    ],
+                "allow_empty_columns": ["备注"]
             }
         }
     ],

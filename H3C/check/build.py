@@ -40,12 +40,14 @@ if not icon_path.exists():
     from create_icon import create_default_icon
     create_default_icon()
 
-# 如果default_config.json不存在，复制它
-DEFAULT_CONFIG = BASE_PATH / "config" / "default_config.json"
+# 复制default_config.json到打包目录
+DEFAULT_CONFIG = BASE_PATH / PKG_NAME / "default_config.json"
 PKG_DEFAULT_CONFIG = PKG_CONFIG / "default_config.json"
-if not PKG_DEFAULT_CONFIG.exists() and DEFAULT_CONFIG.exists():
+if DEFAULT_CONFIG.exists():
     print("复制默认配置文件...")
     import shutil
+    if not PKG_CONFIG.exists():
+        PKG_CONFIG.mkdir(parents=True)
     shutil.copy2(DEFAULT_CONFIG, PKG_DEFAULT_CONFIG)
 
 # Windows下需要使用分号，其他平台使用冒号

@@ -10,32 +10,39 @@ class Config:
     def __init__(self, config_path: str | Path):
         self.config_path = Path(config_path)
         self.config_data = self._load_config()
+        
     @staticmethod
     def load_default_config() -> Dict[str, Any]:
         """加载默认配置文件"""
-        # 获取程序目录中的默认配置
+        # 获取默认配置文件的路径
+        default_path = Path(__file__).parent / "default_config.json"
         try:
-            import importlib.resources
-            with importlib.resources.files('h3c_doc_checker.config').joinpath('default_config.json').open('r', encoding='utf-8') as f:
-                return json.load(f)
+            if default_path.exists():
+                with open(default_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            else:
+                raise FileNotFoundError(f"默认配置文件不存在: {default_path}")
         except Exception as e:
             raise ValueError(f"无法加载默认配置文件: {str(e)}")
 
     def _load_config(self) -> Dict[str, Any]:
         """加载配置文件"""
-        # 如果配置路径是默认值，使用内置的默认配置
-        if str(self.config_path) == str(Path("config") / "default_config.json"):
-            config_data = self.load_default_config()
-        else:
-            # 如果指定了配置文件，则使用指定的配置
-            if not self.config_path.exists():
-                raise FileNotFoundError(f"配置文件不存在: {self.config_path}")
-            
-            try:
+        try:
+            # 如果配置路径是默认值或者config/default_config.json，使用内置的默认配置
+            if (str(self.config_path) == str(Path("config") / "default_config.json") or 
+                str(self.config_path) == "default_config.json"):
+                config_data = self.load_default_config()
+            else:
+                # 如果指定了配置文件，则使用指定的配置
+                if not self.config_path.exists():
+                    raise FileNotFoundError(f"配置文件不存在: {self.config_path}")
+                
                 with open(self.config_path, 'r', encoding='utf-8') as f:
                     config_data = json.load(f)
-            except json.JSONDecodeError as e:
-                raise ValueError(f"配置文件格式错误: {e}")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"配置文件格式错误: {e}")
+        except Exception as e:
+            raise ValueError(f"加载配置文件失败: {str(e)}")
         
         # 兼容旧版配置键名
         if 'content_under_heading_rules' in config_data and 'content_rules' not in config_data:

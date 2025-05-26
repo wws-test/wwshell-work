@@ -1,8 +1,8 @@
+# h3c_doc_checker/main.py
 import sys
 import argparse
 from pathlib import Path
 from typing import List
-import importlib.resources
 import logging
 import tkinter as tk
 
@@ -13,7 +13,7 @@ from h3c_doc_checker.checkers import TitleChecker, TableChecker, ContentChecker
 # 确保使用UTF-8编码
 ensure_utf8_environment()
 
-def test_gui_environment():
+def test_gui_environment() -> bool:
     """测试GUI环境是否正常"""
     try:
         logging.info("测试GUI环境...")
@@ -43,12 +43,14 @@ def launch_gui():
             
         # 导入GUI模块
         logging.info("导入GUI模块...")
-        from h3c_doc_checker.splash import main as splash_main
+        from h3c_doc_checker.gui import DocumentCheckerGUI
         
-        # 启动splash screen和主程序
-        logging.info("正在启动splash screen...")
-        splash_main()
+        # 创建主窗口
+        logging.info("正在创建主窗口...")
+        root = tk.Tk()
+        app = DocumentCheckerGUI(root)
         logging.info("GUI启动成功")
+        return root.mainloop()
         
     except ImportError as e:
         logging.error(f"无法导入GUI模块: {str(e)}")
@@ -57,116 +59,155 @@ def launch_gui():
         logging.error(f"GUI启动失败: {str(e)}")
         raise
 
-def main(config_path_str: str = None):
-    try:
-        # 使用外部 config 目录下的默认配置
+def check_single_document(doc_path: str, config_path: str = None) -> List[CheckResult]:
+    """
+    检查单个文档
+    
+    Args:
+        doc_path: 文档路径
+        config_path: 配置文件路径
+        
+    Returns:
+        检查结果列表
+    """
+    try:        # 加载配置
         logging.info("开始加载配置文件")
-        if not config_path_str:
+        if not config_path:
             logging.debug("使用默认配置文件")
-            effective_config_path = Path("config") / "default_config.json"  # 使用相对路径，触发默认配置加载
-            logging.info(f"默认配置文件路径: {effective_config_path}")
+            effective_config_path = "default_config.json"
         else:
-            logging.debug(f"使用指定配置文件: {config_path_str}")
-            effective_config_path = Path(config_path_str)
+            effective_config_path = Path(config_path)
+            
         logging.info(f"加载配置完成: {effective_config_path}")
-        current_config = Config(effective_config_path)
-        current_config.validate()
-        logging.info(f"配置校验通过，文档路径: {current_config.document_path}")
-        doc = load_document(current_config.document_path)
-        logging.info("Word文档加载成功")
+        config = Config(effective_config_path)
+        config.validate()
+        
+        # 加载文档
+        logging.info(f"加载文档: {doc_path}")
+        doc = load_document(doc_path)
+        
+        # 执行检查
         results = []
-        if current_config.title_rules:
-            logging.info("开始标题检查...")
-            checker = TitleChecker(doc, current_config.title_rules)
-            res = checker.check_title()
-            logging.info(f"标题检查结果: {res.__dict__}")
-            results.append(res)
-        if current_config.table_rules:
-            logging.info("开始表格检查...")
-            checker = TableChecker(doc, current_config.table_rules)
-            table_results = checker.check_tables()
-            for r in table_results:
-                logging.info(f"表格检查结果: {r.__dict__}")
+        
+        # 标题检查
+        if config.title_rules:
+            logging.info("执行标题检查...")
+            title_checker = TitleChecker(doc, config.title_rules)
+            title_result = title_checker.check_title()
+            results.append(title_result)
+            logging.info(f"标题检查结果: {title_result.passed}")
+        
+        # 表格检查
+        if config.table_rules:
+            logging.info("执行表格检查...")
+            table_checker = TableChecker(doc, config.table_rules)
+            table_results = table_checker.check_tables()
             results.extend(table_results)
-        if current_config.content_rules:
-            logging.info("开始正文检查...")
-            checker = ContentChecker(doc, current_config.content_rules)
-            content_results = checker.check_contents()
-            for r in content_results:
-                logging.info(f"正文检查结果: {r.__dict__}")
+            logging.info(f"表格检查完成，共 {len(table_results)} 个检查项")
+            
+        # 内容检查
+        if config.content_rules:
+            logging.info("执行内容检查...")
+            content_checker = ContentChecker(doc, config.content_rules)
+            content_results = content_checker.check_contents()
             results.extend(content_results)
-        print_results(results)
-        sys.exit(0 if all(r.passed for r in results) else 1)
+            logging.info(f"内容检查完成，共 {len(content_results)} 个检查项")
+            
+        return results
+        
     except Exception as e:
-        print(f"错误: {str(e)}", file=sys.stderr)
-        sys.exit(2)
+        logging.error(f"文档检查出错: {str(e)}", exc_info=True)
+        raise
 
-def print_results(results: List[CheckResult]):
-    print("\n=== 文档检查报告 ===\n")
-    total_checks = len(results)
-    passed_checks = sum(1 for r in results if r.passed)
-    print(format_check_results(results))
-    print(f"\n总结:")
-    print(f"- 总检查项: {total_checks}")
-    print(f"- 通过项数: {passed_checks}")
-    print(f"- 失败项数: {total_checks - passed_checks}")
-    print(f"\n整体状态: {'通过' if passed_checks == total_checks else '失败'}")
-
-def run_check(doc_path_str: str, config_path_str: str = None) -> List[CheckResult]:
-    if not config_path_str:
-        # 使用外部 config 目录下的默认配置
-        effective_config_path = Path("config") / "default_config.json"  # 使用相对路径，触发默认配置加载
-    else:
-        effective_config_path = Path(config_path_str)
-    current_config = Config(effective_config_path)
-    if hasattr(current_config, 'config_data') and 'document_to_check' in current_config.config_data:
-        current_config.config_data['document_to_check'] = doc_path_str
-    doc = load_document(doc_path_str)
-    results = []
-    if current_config.title_rules:
-        checker = TitleChecker(doc, current_config.title_rules)
-        results.append(checker.check_title())
-    if current_config.table_rules:
-        checker = TableChecker(doc, current_config.table_rules)
-        results.extend(checker.check_tables())
-    if current_config.content_rules:
-        checker = ContentChecker(doc, current_config.content_rules)
-        results.extend(checker.check_contents())
-    return results
-
-def cli_entry():
-    logging.info("解析命令行参数...")
-    parser = argparse.ArgumentParser(description='Word文档模板检查工具')
-    parser.add_argument('-c', '--config', help='配置文件路径')
-    parser.add_argument('document', help='要检查的Word文档路径', nargs='?')
-    parser.add_argument('--gui', action='store_true', help='启动图形界面')
+def print_results(results: List[CheckResult]) -> None:
+    """打印检查结果"""
+    if not results:
+        print("没有检查结果")
+        return
+        
+    print("\n=== 检查结果 ===\n")
+    for i, result in enumerate(results, 1):
+        status = "✓" if result.passed else "✗"
+        print(f"{i}. [{status}] {result.message}")
+        if result.details:
+            print(f"   详情: {result.details}")
+    print("\n=== 检查完成 ===\n")
     
-    # 捕获任何可能的参数解析错误
+    # 打印摘要
+    total = len(results)
+    passed = sum(1 for r in results if r.passed)
+    failed = total - passed
+    print(f"总计: {total} 项, 通过: {passed} 项, 失败: {failed} 项")
+    
+    if failed > 0:
+        sys.exit(1)
+    sys.exit(0)
+
+def parse_arguments():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(description="H3C文档规范检查工具")
+    subparsers = parser.add_subparsers(dest="command", help="命令")
+    
+    # GUI模式
+    gui_parser = subparsers.add_parser("gui", help="启动图形界面")
+    
+    # 检查单个文件
+    check_parser = subparsers.add_parser("check", help="检查单个文档")
+    check_parser.add_argument(
+        "-f", "--file",
+        required=True,
+        help="要检查的Word文档路径"
+    )
+    check_parser.add_argument(
+        "-c", "--config",
+        help="配置文件路径（可选）"
+    )
+    
+    # 批量检查
+    batch_parser = subparsers.add_parser("batch", help="批量检查多个文档")
+    batch_parser.add_argument(
+        "-d", "--directory",
+        help="包含要检查文档的目录"
+    )
+    batch_parser.add_argument(
+        "-c", "--config",
+        help="配置文件路径（可选）"
+    )
+    
+    return parser.parse_args()
+
+def main():
+    """主函数"""
+    # 配置日志
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler("h3c_checker.log", encoding="utf-8")
+        ]
+    )
+    
     try:
-        args = parser.parse_args()
-    except Exception as e:
-        logging.error(f"参数解析错误: {e}")
-        args = parser.parse_args([])  # 使用空参数列表
-    
-    logging.info(f"参数解析结果: {args}")
-    
-    # 决定是否启动GUI
-    should_launch_gui = args.gui or not args.document
-    
-    if should_launch_gui:
-        logging.info("准备以GUI模式启动...")
-        try:
+        args = parse_arguments()
+        
+        if args.command == "gui":
             launch_gui()
-        except Exception as e:
-            logging.error(f"GUI启动失败: {str(e)}")
-            from tkinter import messagebox
-            messagebox.showerror("错误", 
-                f"程序启动失败: {str(e)}\n\n"
-                "请检查日志文件以获取详细信息。")
-            sys.exit(1)
-    else:
-        logging.info("以命令行模式启动...")
-        main(args.config)
+        elif args.command == "check":
+            results = check_single_document(args.file, args.config)
+            print_results(results)
+        elif args.command == "batch":
+            from h3c_doc_checker.batch_processor import BatchProcessor
+            processor = BatchProcessor(args.config)
+            # 这里可以添加批量处理逻辑
+            print("批量处理功能正在开发中...")
+        else:
+            # 如果没有指定命令，默认启动GUI
+            launch_gui()
+            
+    except Exception as e:
+        logging.error(f"程序出错: {str(e)}", exc_info=True)
+        sys.exit(1)
 
-if __name__ == '__main__':
-    cli_entry()
+if __name__ == "__main__":
+    main()

@@ -4,16 +4,26 @@
 import os
 import sys
 import locale
-from typing import Dict, Optional
+from typing import Dict, Optional, Any, Any
 from docx import Document
 from docx.text.paragraph import Paragraph
 
 class CheckResult:
     """检查结果类"""
-    def __init__(self, passed: bool, message: str = "", details: Dict = None):
+    def __init__(self, type: str = "未知检查", passed: bool = False, message: str = "", details: Dict = None):
+        self.type = type
         self.passed = passed
         self.message = message
         self.details = details or {}
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """将检查结果转换为字典格式"""
+        return {
+            "type": self.type,
+            "passed": self.passed,
+            "message": self.message,
+            "details": self.details
+        }
 
 def ensure_utf8_environment() -> None:
     """确保系统环境使用UTF-8编码"""
