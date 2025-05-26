@@ -15,6 +15,8 @@ class DocumentCheckerGUI:
         
         # 配置文件路径
         self.config_path = "config/default_config.json"
+        # 存储所有可用的配置文件
+        self.config_files = self.scan_config_files()
         
         # 创建主框架
         self.create_widgets()
@@ -24,7 +26,14 @@ class DocumentCheckerGUI:
         btn_frame = ttk.Frame(self.root)
         btn_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        ttk.Button(btn_frame, text="选择配置文件", command=self.select_config).pack(side=tk.LEFT, padx=5)
+        # 配置文件下拉框
+        config_names = list(self.config_files.keys())
+        self.config_combobox = ttk.Combobox(btn_frame, values=config_names, state="readonly")
+        # 如果有配置文件，设置第一个为默认选项
+        if config_names:
+            self.config_combobox.set(config_names[0])
+        self.config_combobox.bind("<<ComboboxSelected>>", self.on_config_selected)
+        self.config_combobox.pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="选择文档", command=self.select_documents).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="开始检查", command=self.start_check).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="导出报告", command=self.export_report).pack(side=tk.LEFT, padx=5)
@@ -87,15 +96,37 @@ class DocumentCheckerGUI:
         self.status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN)
         self.status_bar.pack(fill=tk.X, side=tk.BOTTOM)
         
-    def select_config(self):
-        file_path = filedialog.askopenfilename(
-            title="选择配置文件",
-            filetypes=[("JSON 文件", "*.json"), ("所有文件", "*.*")],
-            initialdir=str(Path.cwd() / "config")
-        )
-        if file_path:
-            self.config_path = file_path
-            self.status_var.set(f"已选择配置文件: {file_path}")
+    def scan_config_files(self) -> Dict[str, Path]:
+        """扫描可用的配置文件"""
+        config_files = {}
+        base_dir = Path(__file__).parent
+
+        # 扫描所有json文件并按字母顺序排序
+        json_files = sorted(base_dir.glob("*.json"), key=lambda x: x.name)
+        
+        # 添加所有配置文件
+        for json_file in json_files:
+            # 使用文件名（不含扩展名）作为显示名称
+            display_name = json_file.stem
+            config_files[display_name] = json_file
+            
+        # 如果有配置文件，设置第一个为默认选项
+        if json_files:
+            self.config_path = str(json_files[0])
+
+        return config_files
+
+    def on_config_selected(self, event):
+        """处理配置文件选择事件"""
+        selected = self.config_combobox.get()
+        if selected in self.config_files:
+            self.config_path = str(self.config_files[selected])
+            self.status_var.set(f"已选择配置文件: {self.config_files[selected].name}")
+
+    def refresh_config_list(self):
+        """刷新配置文件列表"""
+        self.config_files = self.scan_config_files()
+        self.config_combobox["values"] = list(self.config_files.keys())
             
     def select_documents(self):
         file_paths = filedialog.askopenfilenames(
