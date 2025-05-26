@@ -73,7 +73,7 @@ python -m h3c_doc_checker check -f 文档.docx -o report.html
 
 ## 配置说明
 
-配置文件位于 `config/default_config.json`，主要包含以下部分：
+配置文件位于 `h3c_doc_checker/config/` 目录下，主要包含以下部分：
 
 - `title_rules`: 标题检查规则
 - `table_rules`: 表格检查规则
@@ -140,15 +140,14 @@ MIT
 
 ## 目录结构
 - h3c_doc_checker/  主程序包（含核心逻辑、GUI、检查器、配置等）
-- config/           默认配置文件
 - build/            打包产物
 - resources/        图标等资源
-- src/              代码副本（如有）
+- src/              构建工具（仅包含 create_icon.py）
 
 详细结构与说明见 [h3c_doc_checker/README.md](h3c_doc_checker/README.md)
 
 ## 配置说明
-- 配置文件位于 `h3c_doc_checker/config/default_config.json`
+- 配置文件位于 `h3c_doc_checker/config/` 目录下
 - 支持自定义检查规则，详见[详细配置说明](h3c_doc_checker/README.md)
 
 ## 依赖

@@ -20,7 +20,7 @@ h3c_doc_checker/
 │   ├── table_checker.py
 │   └── content_checker.py
 ├── config/
-│   └── default_config.json
+│   └── *.json  # 配置文件
 ├── resources/
 │   └── icon.ico
 └── README.md
@@ -52,11 +52,11 @@ pyinstaller --onefile -w -n docx_checker h3c_doc_checker/__main__.py
 - 支持 Word 文档标题、表格、内容多维度规范检查
 - 支持自定义 JSON 配置模板
 - 支持详细报告导出（HTML）
-- 支持现代美观的 GUI 操作
+- 支持现代美观的 GUI 操作，带启动画面
 - 支持一键打包为 Windows 独立可执行文件
 
 ## 配置说明
-详见 `config/default_config.json`，或在 GUI 内点击“查看配置说明”。
+详见 `config/` 目录下的配置文件，或在 GUI 内点击“查看配置说明”。
 
 ## 资源文件访问
 所有资源（如 icon、配置）均通过 `importlib.resources` 访问，打包后无需担心路径丢失。

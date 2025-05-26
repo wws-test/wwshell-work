@@ -56,23 +56,32 @@ class SplashScreen:
         self.root.destroy()
 
 def start_main_app():
-    from h3c_doc_checker.gui import CheckerGUI
-    app = CheckerGUI()
-    app.run()
+    """启动主应用程序"""
+    import tkinter as tk
+    from h3c_doc_checker.gui import DocumentCheckerGUI
+
+    root = tk.Tk()
+    app = DocumentCheckerGUI(root)
+    root.mainloop()
 
 def main():
+    """主启动函数，显示启动画面并启动应用"""
     ensure_utf8_environment()
     splash = SplashScreen()
+
     steps = [
-        (20, "正在初始化..."),
-        (40, "加载配置文件..."),
-        (60, "准备界面组件..."),
-        (80, "初始化检查模块..."),
-        (100, "启动完成")
+        (15, "正在初始化环境..."),
+        (30, "扫描配置文件..."),
+        (50, "加载检查模块..."),
+        (70, "准备界面组件..."),
+        (90, "初始化完成..."),
+        (100, "启动应用")
     ]
+
     for progress, text in steps:
         splash.update_progress(progress, text)
-        time.sleep(0.5)
+        time.sleep(0.3)  # 稍微快一点的加载速度
+
     splash.finish()
     start_main_app()
 

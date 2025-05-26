@@ -26,11 +26,6 @@
                 "text": "环境部署",
                 "style_name": "Heading 4",
                 "required": true
-            },
-            {
-                "text": "测试执行",
-                "style_name": "Heading 4",
-                "required": true
             }
         ]
     },    "table_rules": [

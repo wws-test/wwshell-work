@@ -40,15 +40,22 @@ if not icon_path.exists():
     from create_icon import create_default_icon
     create_default_icon()
 
-# 复制default_config.json到打包目录
-DEFAULT_CONFIG = BASE_PATH / PKG_NAME / "default_config.json"
-PKG_DEFAULT_CONFIG = PKG_CONFIG / "default_config.json"
-if DEFAULT_CONFIG.exists():
-    print("复制默认配置文件...")
-    import shutil
-    if not PKG_CONFIG.exists():
-        PKG_CONFIG.mkdir(parents=True)
-    shutil.copy2(DEFAULT_CONFIG, PKG_DEFAULT_CONFIG)
+# 复制配置文件到打包目录
+import shutil
+
+# 创建临时打包目录
+temp_config_dir = BASE_PATH / "dist" / "config"
+if not temp_config_dir.exists():
+    temp_config_dir.mkdir(parents=True)
+
+# 复制所有配置文件到临时目录
+print("复制配置文件...")
+for config_file in (BASE_PATH / PKG_NAME / "config").glob("*.json"):
+    target_file = temp_config_dir / config_file.name
+    shutil.copy2(config_file, target_file)
+
+# 更新打包命令中的配置文件路径
+PKG_CONFIG = temp_config_dir
 
 # Windows下需要使用分号，其他平台使用冒号
 PATH_SEP = ";" if sys.platform.startswith('win') else ":"

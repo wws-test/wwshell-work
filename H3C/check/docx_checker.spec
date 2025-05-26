@@ -5,7 +5,7 @@ a = Analysis(
     ['h3c_doc_checker\\__main__.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:\\Users\\admin\\Documents\\GitHub\\wwshell-work\\H3C\\check\\h3c_doc_checker\\resources', 'h3c_doc_checker/resources'), ('C:\\Users\\admin\\Documents\\GitHub\\wwshell-work\\H3C\\check\\h3c_doc_checker\\config', 'h3c_doc_checker/config')],
+    datas=[('C:\\Users\\admin\\Documents\\GitHub\\wwshell-work\\H3C\\check\\h3c_doc_checker\\resources', 'h3c_doc_checker/resources'), ('C:\\Users\\admin\\Documents\\GitHub\\wwshell-work\\H3C\\check\\dist\\config', 'h3c_doc_checker/config')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
