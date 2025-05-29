@@ -1,0 +1,52 @@
+{
+    "mcpServers": {
+      "context7": {
+        "command": "npx",
+        "args": ["-y", "@upstash/context7-mcp@latest"]
+      },
+      "interactive-feedback-mcp": {
+        "command": "uv",
+        "args": [
+        "--directory",
+        "C:/Users/sys49169/Music/MCP/interactive-feedback-mcp",
+        "run",
+        "server.py"
+        ],
+        "timeout": 600,
+        "autoApprove": [
+        "interactive_feedback"
+        ]
+        },
+      "ssh-mpc-server": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@fangjunjie/ssh-mcp-server",
+            "--host 192.2.29.9",
+            "--port 22",
+            "--username root",
+            "--password 123456"
+          ]
+        },
+        "mysql": {
+          "command": "npx",
+          "args": ["-y", "@f4ww4z/mcp-mysql-server", "mysql://user:password@localhost:port/database"]
+        },
+        "exa": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@smithery/cli@latest",
+            "run",
+            "exa",
+            "--key",
+            "2c7ccdf0-6aa2-497b-93e2-a4d84fbf4af5"
+          ]
+        },
+        "windows-cli": {
+        "command": "npx",
+          "args": ["-y", "@simonb97/server-win-cli"]
+        }
+    }
+  
+  }
