@@ -8,7 +8,8 @@ import tkinter as tk
 
 from h3c_doc_checker.config import Config
 from h3c_doc_checker.utils import CheckResult, load_document, format_check_results, ensure_utf8_environment
-from h3c_doc_checker.checkers import TitleChecker, TableChecker, ContentChecker
+from h3c_doc_checker.checkers import TitleChecker, TableChecker, ContentChecker, FontChecker
+from h3c_doc_checker.batch_processor import BatchProcessor
 
 # 确保使用UTF-8编码
 ensure_utf8_environment()
@@ -70,10 +71,9 @@ def check_single_document(doc_path: str, config_path: str = None) -> List[CheckR
     Returns:
         检查结果列表
     """
-    try:        # 加载配置
-        logging.info("开始加载配置文件")
+    try:
+        # 加载配置
         if not config_path:
-            logging.debug("使用默认配置文件")
             # 使用实际存在的配置文件
             default_config_dir = Path(__file__).parent / "config"
             config_files = list(default_config_dir.glob("*.json"))
@@ -84,40 +84,25 @@ def check_single_document(doc_path: str, config_path: str = None) -> List[CheckR
         else:
             effective_config_path = Path(config_path)
 
-        logging.info(f"加载配置完成: {effective_config_path}")
         config = Config(effective_config_path)
         config.validate()
 
-        # 加载文档
-        logging.info(f"加载文档: {doc_path}")
-        doc = load_document(doc_path)
-
+        # 创建批处理器
+        processor = BatchProcessor(config_path=config_path)
+        
         # 执行检查
+        doc_result = processor.process_document(doc_path)
+        
+        # 将字典格式的结果转换为CheckResult列表
         results = []
-
-        # 标题检查
-        if config.title_rules:
-            logging.info("执行标题检查...")
-            title_checker = TitleChecker(doc, config.title_rules)
-            title_result = title_checker.check_title()
-            results.append(title_result)
-            logging.info(f"标题检查结果: {title_result.passed}")
-
-        # 表格检查
-        if config.table_rules:
-            logging.info("执行表格检查...")
-            table_checker = TableChecker(doc, config.table_rules)
-            table_results = table_checker.check_tables()
-            results.extend(table_results)
-            logging.info(f"表格检查完成，共 {len(table_results)} 个检查项")
-
-        # 内容检查
-        if config.content_rules:
-            logging.info("执行内容检查...")
-            content_checker = ContentChecker(doc, config.content_rules)
-            content_results = content_checker.check_contents()
-            results.extend(content_results)
-            logging.info(f"内容检查完成，共 {len(content_results)} 个检查项")
+        for result_dict in doc_result.get("results", []):
+            result = CheckResult(
+                type=result_dict.get("type"),
+                passed=result_dict.get("passed"),
+                message=result_dict.get("message"),
+                details=result_dict.get("details")
+            )
+            results.append(result)
 
         return results
 
@@ -125,29 +110,39 @@ def check_single_document(doc_path: str, config_path: str = None) -> List[CheckR
         logging.error(f"文档检查出错: {str(e)}", exc_info=True)
         raise
 
-def print_results(results: List[CheckResult]) -> None:
-    """打印检查结果"""
-    if not results:
-        print("没有检查结果")
-        return
-
-    print("\n=== 检查结果 ===\n")
-    for i, result in enumerate(results, 1):
-        status = "✓" if result.passed else "✗"
-        print(f"{i}. [{status}] {result.message}")
-        if result.details:
-            print(f"   详情: {result.details}")
-    print("\n=== 检查完成 ===\n")
-
-    # 打印摘要
-    total = len(results)
-    passed = sum(1 for r in results if r.passed)
+def output_check_results(results: List[CheckResult], total: int, passed: int, failed: int) -> int:
+    """输出检查结果
+    
+    Args:
+        results: 检查结果列表
+        total: 总检查项数
+        passed: 通过项数
+        failed: 失败项数
+        
+    Returns:
+        int: 退出码，0表示全部通过，1表示有失败项
+    """
+    # 使用集合存储唯一的检查结果
+    unique_results = set()
+    for result in results:
+        unique_results.add((result.type, result.message, str(result.details), result.passed))
+    
+    # 重新计算统计数据
+    total = len(unique_results)
+    passed = sum(1 for r in unique_results if r[3])
     failed = total - passed
-    print(f"总计: {total} 项, 通过: {passed} 项, 失败: {failed} 项")
-
+    
     if failed > 0:
-        sys.exit(1)
-    sys.exit(0)
+        print("\n=== 检查结果 ===\n")
+        for i, (type_, message, details, _) in enumerate(sorted(r for r in unique_results if not r[3]), 1):
+            status = "✗"
+            print(f"{i}. [{status}] {message}")
+            print(f"   详情: {details}")
+    
+    print("\n=== 检查完成 ===\n")
+    print(f"总计: {total} 项, 通过: {passed} 项, 失败: {failed} 项")
+    
+    return 1 if failed > 0 else 0
 
 def parse_arguments():
     """解析命令行参数"""
@@ -184,36 +179,31 @@ def parse_arguments():
 
 def main():
     """主函数"""
-    # 配置日志
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler("h3c_checker.log", encoding="utf-8")
-        ]
-    )
-
     try:
         args = parse_arguments()
 
         if args.command == "gui":
-            launch_gui()
+            return launch_gui()
         elif args.command == "check":
             results = check_single_document(args.file, args.config)
-            print_results(results)
+            total = len(results)
+            passed = sum(1 for r in results if r.passed)
+            failed = total - passed
+            
+            return output_check_results(results, total, passed, failed)
         elif args.command == "batch":
             from h3c_doc_checker.batch_processor import BatchProcessor
             processor = BatchProcessor(args.config)
             # 这里可以添加批量处理逻辑
             print("批量处理功能正在开发中...")
+            return 0
         else:
             # 如果没有指定命令，默认启动GUI
-            launch_gui()
+            return launch_gui()
 
     except Exception as e:
         logging.error(f"程序出错: {str(e)}", exc_info=True)
-        sys.exit(1)
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

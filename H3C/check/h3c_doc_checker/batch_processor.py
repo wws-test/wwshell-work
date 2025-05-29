@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from .config import Config
-from .checkers import TitleChecker, TableChecker, ContentChecker
+from .checkers import TitleChecker, TableChecker, ContentChecker, FontChecker
 from .utils import CheckResult, load_document
 
 class BatchProcessor:
@@ -18,18 +18,27 @@ class BatchProcessor:
             doc = load_document(doc_path)
             results = []
             
-            # 执行所有检查
+            # 初始化检查器
+            checkers = []
             if self.config.title_rules:
-                checker = TitleChecker(doc, self.config.title_rules)
-                results.append(checker.check_title())
-                
+                checkers.append(TitleChecker(doc, self.config.title_rules))
+            if hasattr(self.config, 'font_rules') and self.config.font_rules:
+                checkers.append(FontChecker(doc, self.config.font_rules))
             if self.config.table_rules:
-                checker = TableChecker(doc, self.config.table_rules)
-                results.extend(checker.check_tables())
-                
+                checkers.append(TableChecker(doc, self.config.table_rules))
             if self.config.content_rules:
-                checker = ContentChecker(doc, self.config.content_rules)
-                results.extend(checker.check_contents())
+                checkers.append(ContentChecker(doc, self.config.content_rules))
+            
+            # 执行检查
+            for checker in checkers:
+                if isinstance(checker, TitleChecker):
+                    results.append(checker.check_title())
+                elif isinstance(checker, FontChecker):
+                    results.extend(checker.check_fonts())
+                elif isinstance(checker, TableChecker):
+                    results.extend(checker.check_tables())
+                elif isinstance(checker, ContentChecker):
+                    results.extend(checker.check_contents())
             
             return {
                 "file": str(doc_path),

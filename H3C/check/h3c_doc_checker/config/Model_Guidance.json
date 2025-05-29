@@ -28,7 +28,51 @@
                 "required": true
             }
         ]
-    },    "table_rules": [
+    },
+    "font_rules": {
+        "heading_font_rules": {
+            "Heading 4": {
+                "chinese_font": "Arial",
+                "english_font": "Arial",
+                "font_size": "五号"
+            }
+        },
+        "content_font_rules": {
+            "chinese_fonts": ["宋体", "Arial"],
+            "english_fonts": ["Arial" ],
+            "font_size": "五号"
+        },
+        "title_rules": {
+            "expected_titles": [
+                {
+                    "text": "测试工具版本",
+                    "style_name": "Heading 4",
+                    "required": true
+                },
+                {
+                    "text": "适用产品",
+                    "style_name": "Heading 4",
+                    "required": true
+                },
+                {
+                    "text": "BIOS设置",
+                    "style_name": "Heading 4",
+                    "required": true
+                },
+                {
+                    "text": "OS设置",
+                    "style_name": "Heading 4",
+                    "required": true
+                },
+                {
+                    "text": "环境部署",
+                    "style_name": "Heading 4",
+                    "required": true
+                }
+            ]
+        }
+    },
+    "table_rules": [
         {
             "heading_text": "测试工具版本",
             "table_index": 0,
@@ -68,8 +112,10 @@
                     "GPU-L20",
                     "GPU-HGX H20 8-GPU",
                     "GPU-S30"
-                    ],
-                "allow_empty_columns": ["备注"]
+                ],
+                "allow_empty_columns": [
+                    "备注"
+                ]
             }
         }
     ],
@@ -86,11 +132,6 @@
         },
         {
             "heading_text_exact": "环境部署",
-            "check_next_paragraphs": 1,
-            "not_empty": true
-        },
-        {
-            "heading_text_exact": "测试执行",
             "check_next_paragraphs": 1,
             "not_empty": true
         }

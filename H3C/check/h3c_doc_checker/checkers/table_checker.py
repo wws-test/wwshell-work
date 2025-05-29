@@ -176,9 +176,10 @@ class TableChecker:
                     value = row.cells[column_index].text.strip()
                     if value and value not in allowed_values:
                         invalid_values.append((row_idx + 1, value))  # +1 因为跳过了表头行
-                        if invalid_values:
-                            all_checks_for_this_table_passed = False
-                            results.append(CheckResult(
+                
+                if invalid_values:
+                    all_checks_for_this_table_passed = False
+                    results.append(CheckResult(
                         type="表格检查",
                         passed=False,
                         message=f"标题 '{heading_text}' 下表格中'{header}'列包含非法值:\n" + 

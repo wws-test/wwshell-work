@@ -52,6 +52,8 @@ class Config:
         # 兼容 content_under_heading_rules 键名
         elif "content_under_heading_rules" in self.config_data:
             self._validate_content_rules(self.config_data["content_under_heading_rules"])
+        if "font_rules" in self.config_data:
+            self._validate_font_rules(self.config_data["font_rules"])
 
     def _validate_title_rules(self, rules: Dict[str, Any]) -> None:
         """校验标题规则配置"""
@@ -114,6 +116,29 @@ class Config:
             if not any(key in rule for key in ["heading_text_contains", "heading_text_exact"]):
                 raise ValueError("正文规则必须指定 heading_text_contains 或 heading_text_exact")
 
+    def _validate_font_rules(self, rules: Dict[str, Any]) -> None:
+        """校验字体规则配置"""
+        if not isinstance(rules, dict):
+            raise ValueError("font_rules 必须是一个对象")
+
+        # 检查标题字体规则
+        if "heading_font_rules" in rules:
+            heading_rules = rules["heading_font_rules"]
+            if not isinstance(heading_rules, dict):
+                raise ValueError("heading_font_rules 必须是一个对象")
+            
+            for style_name, rule in heading_rules.items():
+                if not isinstance(rule, dict):
+                    raise ValueError(f"标题样式 '{style_name}' 的字体规则必须是一个对象")
+                # font_name 和 font_size 是可选的，但如果存在必须是字符串或数字
+
+        # 检查正文字体规则
+        if "content_font_rules" in rules:
+            content_rules = rules["content_font_rules"]
+            if not isinstance(content_rules, dict):
+                raise ValueError("content_font_rules 必须是一个对象")
+            # chinese_font 和 english_font 是可选的
+
     @property
     def document_path(self) -> str:
         """获取要检查的文档路径"""
@@ -133,3 +158,8 @@ class Config:
     def content_rules(self) -> List[Dict[str, Any]]:
         """获取正文规则配置"""
         return self.config_data.get("content_rules", [])
+
+    @property
+    def font_rules(self) -> Optional[Dict[str, Any]]:
+        """获取字体规则配置"""
+        return self.config_data.get("font_rules")
