@@ -1,0 +1,255 @@
+#!/bin/bash
+
+# 昆仑芯 GPU 诊断信息收集脚本
+# 作者：AI助手
+# 版本：1.0
+# 描述：收集全面的系统信息用于昆仑芯 GPU 问题排查
+
+# 检查是否以root用户运行
+if [ "$(id -u)" -ne 0 ]; then
+    echo "警告：建议使用root权限运行此脚本以获取完整信息"
+    read -p "是否继续? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
+
+# 定义输出文件
+OUTPUT_FILE="kunlun_gpu_diagnostics_$(date +%Y%m%d_%H%M%S).log"
+
+# 函数：打印表格分隔线
+function print_separator {
+    printf "+---------------------+----------------------------------------------------+\n" >> "$OUTPUT_FILE"
+}
+
+# 函数：打印表格行
+function print_row {
+    printf "| %-19s | %-50s |\n" "$1" "$2" >> "$OUTPUT_FILE"
+}
+
+# 函数：获取命令输出，处理错误
+function safe_command {
+    local cmd=$1
+    local output
+    output=$(eval "$cmd" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "命令执行失败: $cmd" >> "$OUTPUT_FILE"
+        echo "错误信息: $output" >> "$OUTPUT_FILE"
+        echo "N/A"
+    else
+        echo "$output"
+    fi
+}
+
+# 函数：将多行输出转换为单行
+function multiline_to_single {
+    echo "$1" | tr '\n' ' ' | sed 's/  */ /g'
+}
+
+# 函数：检查昆仑芯设备是否存在
+function check_kunlun_device {
+    local pci_info=$(lspci -d 1d22: -d 3694: 2>/dev/null)
+    if [ -z "$pci_info" ]; then
+        echo "未检测到昆仑芯设备"
+        return 1
+    else
+        echo "检测到昆仑芯设备:"
+        echo "$pci_info"
+        return 0
+    fi
+}
+
+# 开始收集信息
+echo "开始收集昆仑芯 GPU 诊断信息..." | tee "$OUTPUT_FILE"
+echo "收集时间: $(date)" >> "$OUTPUT_FILE"
+echo >> "$OUTPUT_FILE"
+
+# 1. 系统基本信息
+echo "==================== 系统基本信息 ====================" >> "$OUTPUT_FILE"
+print_separator
+print_row "主机名" "$(hostname)"
+print_separator
+print_row "操作系统" "$(multiline_to_single "$(safe_command "cat /etc/os-release | grep PRETTY_NAME")")"
+print_separator
+print_row "内核版本" "$(uname -r)"
+print_separator
+print_row "系统架构" "$(uname -m)"
+print_separator
+print_row "启动时间" "$(uptime -s)"
+print_separator
+print_row "运行时间" "$(uptime -p)"
+print_separator
+print_row "当前用户" "$(whoami)"
+print_separator
+print_row "SELinux状态" "$(multiline_to_single "$(safe_command "sestatus 2>/dev/null")")"
+print_separator
+print_row "系统语言" "$(echo $LANG)"
+print_separator
+echo >> "$OUTPUT_FILE"
+
+# 2. CPU信息
+echo "==================== CPU信息 ====================" >> "$OUTPUT_FILE"
+print_separator
+print_row "CPU型号" "$(multiline_to_single "$(safe_command "lscpu | grep 'Model name'")")"
+print_separator
+print_row "CPU核心数" "$(nproc)"
+print_separator
+print_row "CPU线程数" "$(lscpu -p | grep -v '^#' | wc -l)"
+print_separator
+print_row "CPU频率" "$(multiline_to_single "$(safe_command "lscpu | grep 'MHz'")")"
+print_separator
+print_row "CPU缓存" "$(multiline_to_single "$(safe_command "lscpu | grep 'cache'")")"
+print_separator
+print_row "CPU使用率" "$(multiline_to_single "$(safe_command "top -bn1 | grep 'Cpu(s)'")")"
+print_separator
+print_row "CPU温度" "$(multiline_to_single "$(safe_command "sensors | grep 'Core'")")"
+print_separator
+print_row "CPU负载" "$(multiline_to_single "$(safe_command "uptime")")"
+print_separator
+echo >> "$OUTPUT_FILE"
+
+# 3. 内存信息
+echo "==================== 内存信息 ====================" >> "$OUTPUT_FILE"
+print_separator
+print_row "总内存" "$(free -h | grep Mem | awk '{print $2}')"
+print_separator
+print_row "已用内存" "$(free -h | grep Mem | awk '{print $3}')"
+print_separator
+print_row "可用内存" "$(free -h | grep Mem | awk '{print $7}')"
+print_separator
+print_row "交换空间" "$(free -h | grep Swap | awk '{print $2}')"
+print_separator
+print_row "已用交换" "$(free -h | grep Swap | awk '{print $3}')"
+print_separator
+print_row "内存使用详情" "$(multiline_to_single "$(safe_command "vmstat -s")")"
+print_separator
+print_row "HugePages信息" "$(multiline_to_single "$(safe_command "grep HugePages /proc/meminfo")")"
+print_separator
+echo >> "$OUTPUT_FILE"
+
+# 4. 存储信息
+echo "==================== 存储信息 ====================" >> "$OUTPUT_FILE"
+print_separator
+print_row "磁盘空间" "$(multiline_to_single "$(safe_command "df -h")")"
+print_separator
+print_row "inode使用" "$(multiline_to_single "$(safe_command "df -i")")"
+print_separator
+print_row "块设备" "$(multiline_to_single "$(safe_command "lsblk")")"
+print_separator
+print_row "RAID信息" "$(multiline_to_single "$(safe_command "cat /proc/mdstat 2>/dev/null")")"
+print_separator
+print_row "LVM信息" "$(multiline_to_single "$(safe_command "lvdisplay 2>/dev/null")")"
+print_separator
+print_row "IO统计" "$(multiline_to_single "$(safe_command "iostat -x 1 2")")"
+print_separator
+print_row "挂载选项" "$(multiline_to_single "$(safe_command "mount | grep ' / '")")"
+print_separator
+echo >> "$OUTPUT_FILE"
+
+# 5. 昆仑芯 GPU 信息
+echo "==================== 昆仑芯 GPU 信息 ====================" >> "$OUTPUT_FILE"
+print_separator
+
+# 5.1 检查昆仑芯设备是否存在
+print_row "PCI设备检测" "$(check_kunlun_device)"
+print_separator
+
+# 5.2 驱动信息
+print_row "驱动状态" "$(multiline_to_single "$(safe_command "lsmod | grep kunlun")")"
+print_separator
+print_row "驱动版本" "$(multiline_to_single "$(safe_command "modinfo kunlun 2>/dev/null | grep 'version:'")")"
+print_separator
+
+# 5.3 xpu-smi 信息
+if command -v xpu-smi &> /dev/null; then
+    XPU_SMI_INFO=$(xpu-smi 2>&1)
+    print_row "xpu-smi状态" "检测到xpu-smi工具"
+    print_separator
+    print_row "设备状态" "$(echo "$XPU_SMI_INFO" | grep "State" | sed 's/|//g')"
+    print_separator
+    print_row "设备温度" "$(echo "$XPU_SMI_INFO" | grep "Temp" | sed 's/|//g')"
+    print_separator
+    print_row "设备功率" "$(echo "$XPU_SMI_INFO" | grep "Pwr" | sed 's/|//g')"
+    print_separator
+    print_row "显存使用" "$(echo "$XPU_SMI_INFO" | grep "Memory-Usage" | sed 's/|//g')"
+    print_separator
+    print_row "设备利用率" "$(echo "$XPU_SMI_INFO" | grep "XPU-Util" | sed 's/|//g')"
+    print_separator
+    print_row "进程信息" "$(echo "$XPU_SMI_INFO" | grep "Processes" -A 10)"
+    print_separator
+else
+    print_row "xpu-smi状态" "未检测到xpu-smi工具"
+    print_separator
+fi
+
+# 5.4 PROC文件系统信息
+if [ -d /proc/kunlun ]; then
+    print_row "PROC文件系统" "检测到/proc/kunlun目录"
+    print_separator
+    
+    # 收集每个设备的信息
+    for dev_dir in /proc/kunlun/dev*; do
+        dev_name=$(basename "$dev_dir")
+        print_row "设备目录" "$dev_name"
+        print_separator
+        
+        # 收集设备状态
+        if [ -f "$dev_dir/state" ]; then
+            print_row "设备状态" "$(cat "$dev_dir/state")"
+            print_separator
+        fi
+        
+        # 收集设备信息
+        if [ -f "$dev_dir/info" ]; then
+            print_row "设备信息" "$(multiline_to_single "$(cat "$dev_dir/info")")"
+            print_separator
+        fi
+        
+        # 收集错误任务信息
+        if [ -f "$dev_dir/errtask" ]; then
+            print_row "错误任务" "$(multiline_to_single "$(cat "$dev_dir/errtask")")"
+            print_separator
+        fi
+    done
+else
+    print_row "PROC文件系统" "未检测到/proc/kunlun目录"
+    print_separator
+fi
+
+# 5.5 设备文件信息
+print_row "设备文件权限" "$(ls -l /dev/xpu* 2>/dev/null)"
+print_separator
+print_row "设备文件存在性" "$(ls /dev/xpu* 2>/dev/null || echo "未找到设备文件")"
+print_separator
+
+# 5.6 运行时信息
+if command -v xpu-smi &> /dev/null; then
+    print_row "运行时版本" "$(xpu-smi -q | grep "Runtime Version" | head -1)"
+    print_separator
+fi
+
+# 5.7 固件信息
+if command -v xpu-smi &> /dev/null; then
+    print_row "固件版本" "$(xpu-smi -q | grep "Firmware Version" -A 3)"
+    print_separator
+fi
+
+# 5.8 使用GPU的进程
+print_row "使用GPU的进程" "$(lsof /dev/xpu* 2>/dev/null || echo "未找到使用GPU的进程")"
+print_separator
+
+# 6. 系统日志
+echo "==================== 系统日志 ====================" >> "$OUTPUT_FILE"
+print_separator
+print_row "dmesg日志" "$(multiline_to_single "$(dmesg | grep kunlun | tail -n 20)")"
+print_separator
+print_row "启动日志" "$(multiline_to_single "$(journalctl -b | grep kunlun | tail -n 20)")"
+print_separator
+print_row "内核消息" "$(multiline_to_single "$(dmesg | grep 'Memory' | tail -n 10)")"
+print_separator
+print_row "PCI错误" "$(multiline_to_single "$(dmesg | grep 'PCIe' | tail -n 10)")"
+print_separator
+
+echo "诊断信息收集完成，结果已保存到: $OUTPUT_FILE"
+echo "请将此文件提供给开发人员进行问题分析"

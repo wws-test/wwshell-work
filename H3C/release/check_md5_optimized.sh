@@ -32,16 +32,15 @@ if [ $MAX_THREADS -gt 32 ]; then
     MAX_THREADS=32
 fi
 
-echo "🚀 多线程MD5校验脚本启动"
-echo "📊 检测到 $CPU_CORES 个CPU核心"
-echo "🔧 使用 $MAX_THREADS 个并行线程"
-echo "⏱️  开始时间: $(date)"
-echo ""
-
 # 设置日志文件路径和名称
 LOG_DIR="/HDD_Raid/log/md5_checks"
 DATE=$(date +"%Y-%m-%d_%H-%M-%S")
 LOG_FILE="${LOG_DIR}/md5_check_optimized_${DATE}.log"
+
+# 显示基本信息
+echo -e "\e[1m=== MD5校验工具 ===\e[0m"
+echo "线程数: $MAX_THREADS/$CPU_CORES"
+echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
 
 # 确保日志目录存在
 mkdir -p "$LOG_DIR"
@@ -128,10 +127,11 @@ monitor_progress() {
             local eta=$((total_files - processed))
             if [ $rate -gt 0 ]; then
                 eta=$((eta * 60 / rate))
-                printf "\r⏳ 进度: %d/%d (%.1f%%) | 速度: %d文件/分钟 | 预计剩余: %dm%ds" \
+                printf "\r[进度] %d/%d (%.1f%%) %d/min ETA: %dm%ds" \
                     $processed $total_files $((processed * 100 / total_files)) $rate $((eta / 60)) $((eta % 60))
             else
-                printf "\r⏳ 进度: %d/%d (%.1f%%)" $processed $total_files $((processed * 100 / total_files))
+                printf "\r[进度] %d/%d (%.1f%%)" \
+                    $processed $total_files $((processed * 100 / total_files))
             fi
         fi
         
@@ -145,7 +145,7 @@ process_directory() {
     local base_dir="$1"
     local dir_name="$2"
     
-    echo "🔍 扫描 $dir_name 目录中的MD5文件..."
+    echo -e "\n[扫描] $dir_name..."
     
     # 查找所有 md5sums.txt 文件
     local md5_files=()
@@ -156,11 +156,11 @@ process_directory() {
     local total_files=${#md5_files[@]}
     
     if [ $total_files -eq 0 ]; then
-        echo "⚠️  在 $dir_name 目录中未找到 md5sums.txt 文件"
+        echo "[警告] $dir_name: 未找到MD5文件"
         return 0
     fi
     
-    echo "📁 找到 $total_files 个MD5文件，开始并行处理..."
+    echo "[信息] 发现 $total_files 个文件"
     
     # 启动进度监控（后台运行）
     monitor_progress $total_files &
@@ -243,21 +243,18 @@ total_processed=$(cat "$GLOBAL_PROCESSED_FILE")
 } >> "$LOG_FILE"
 
 # 显示最终结果
-echo ""
-echo "🎉 处理完成！"
-echo "📊 统计结果:"
-echo "   - 处理MD5文件: $total_processed 个"
-echo "   - 成功校验: $total_success 个文件"
-echo "   - 失败校验: $total_failed 个文件"
-echo "   - 总耗时: ${TOTAL_TIME}秒"
-echo "📄 详细日志: $LOG_FILE"
+echo -e "\n=== 检查完成 ==="
+echo "总文件: $total_processed"
+echo "成功数: $total_success"
+echo "失败数: $total_failed"
+echo "耗时: ${TOTAL_TIME}秒"
+echo "日志: $LOG_FILE"
 
 # 如果有失败，显示失败详情
 if [ $total_failed -gt 0 ]; then
-    echo ""
-    echo "❌ 发现校验失败，详情请查看日志文件"
-    # 可选：显示失败文件的简要信息
-    find "$RESULT_DIR" -name "*.details" -exec echo "失败详情: {}" \; -exec head -3 {} \; 2>/dev/null | head -20
+    echo -e "\n[错误] 检测到校验失败"
+    echo "前3个失败文件:"
+    find "$RESULT_DIR" -name "*.details" -exec head -1 {} \; 2>/dev/null | head -3
 fi
 
 # 清理临时文件（可选，用于调试时保留）

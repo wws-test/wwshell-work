@@ -30,19 +30,6 @@ check_root() {
     fi
 }
 
-# 检查网络配置文件是否存在
-check_network_file() {
-    local iface=$1
-    local config_file="/etc/sysconfig/network-scripts/ifcfg-$iface"
-    
-    if [[ ! -f "$config_file" ]]; then
-        log_error "网络接口 '$iface' 的配置文件不存在: $config_file"
-        return 1
-    fi
-    
-    return 0
-}
-
 # 获取可用的网络接口
 get_available_interfaces() {
     local interfaces=()
@@ -182,12 +169,6 @@ main() {
     fi
     
     selected_iface=${interfaces[$iface_index]}
-    
-    # 检查网络配置文件
-    if ! check_network_file "$selected_iface"; then
-        log_error "无法继续配置。"
-        exit 1
-    fi
     
     # 选择配置类型
     echo

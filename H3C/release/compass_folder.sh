@@ -104,31 +104,106 @@ get_folder_size() {
     echo $((size_in_bytes / 1024 / 1024 / 1024)) # 转换为GB
 }
 
-# 处理大文件夹（>300GB）
+# 处理大文件夹，将其分片打包
 process_large_folder() {
     local folder="$1"
     local success=true
+    local -r MAX_SIZE=280 # 每个tar包最大尺寸(GB)
+    local backup_folder="${folder}_bk"
     
-    log_message "$LOG_INFO" "处理大文件夹 (>300GB): $folder"
+    log_message "$LOG_INFO" "处理大文件夹: $folder (分片打包模式)"
     
-    # 在原位置生成 md5sums.txt
-    (cd "$folder" && find . -type f -not -name "md5sums.txt" -print0 | xargs -0 md5sum > md5sums.txt)
-    if [ $? -ne 0 ]; then
-        log_message "$LOG_ERROR" "生成 MD5 校验文件失败: $folder"
-        success=false
+    # 创建备份文件夹
+    mkdir -p "$backup_folder" || {
+        log_message "$LOG_ERROR" "创建备份文件夹失败: $backup_folder"
+        return 1
+    }
+    
+    # 进入源文件夹
+    cd "$folder" || return 1
+    
+    # 计算总大小(GB)和预估分片数
+    local total_size=$(get_folder_size ".")
+    local estimated_parts=$(( (total_size + MAX_SIZE - 1) / MAX_SIZE ))
+    
+    log_message "$LOG_INFO" "文件夹大小: ${total_size}GB, 预计分: $estimated_parts 片"
+    
+    # 创建临时文件列表
+    local file_list="/tmp/tar_files_$$.txt"
+    find . -type f -print0 | xargs -0 ls -l | sort -k5 -nr | awk '{print $NF}' > "$file_list"
+    
+    # 初始化变量
+    local current_size=0
+    local current_files=()
+    local part=1
+    
+    # 读取文件列表并分组
+    while IFS= read -r file; do
+        # 获取单个文件大小(bytes转GB)
+        local file_size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file")
+        file_size=$(( file_size / 1024 / 1024 / 1024 ))
+        
+        # 如果当前文件过大，单独打包
+        if [ "$file_size" -gt "$MAX_SIZE" ]; then
+            log_message "$LOG_WARNING" "文件过大，单独打包: $file ($file_size GB)"
+            tar -czf "../${backup_folder}/$(basename "$folder")_single_${part}.tar.gz" "$file" || {
+                log_message "$LOG_ERROR" "打包失败: $file"
+                continue
+            }
+            ((part++))
+            continue
+        fi
+        
+        # 累计大小超过限制时，打包当前组
+        if [ "$((current_size + file_size))" -gt "$MAX_SIZE" ] && [ "${#current_files[@]}" -gt 0 ]; then
+            log_message "$LOG_INFO" "打包分片 $part (${current_size}GB)"
+            tar -czf "../${backup_folder}/$(basename "$folder")_part${part}.tar.gz" "${current_files[@]}" || {
+                log_message "$LOG_ERROR" "打包分片 $part 失败"
+                success=false
+                break
+            }
+            ((part++))
+            current_size=0
+            current_files=()
+        fi
+        
+        # 添加文件到当前组
+        current_files+=("$file")
+        current_size=$((current_size + file_size))
+    done < "$file_list"
+    
+    # 处理最后一组文件
+    if [ "${#current_files[@]}" -gt 0 ]; then
+        log_message "$LOG_INFO" "打包最后一个分片 $part (${current_size}GB)"
+        tar -czf "../${backup_folder}/$(basename "$folder")_part${part}.tar.gz" "${current_files[@]}" || {
+            log_message "$LOG_ERROR" "打包最后一个分片失败"
+            success=false
+        }
     fi
     
+    # 清理临时文件
+    rm -f "$file_list"
+    
+    # 生成完整的md5sums文件
+    cd "../$backup_folder" || return 1
+    log_message "$LOG_INFO" "生成MD5校验文件..."
+    find . -type f ! -name "md5sums.txt" -exec md5sum {} \; > md5sums.txt
+    
+    # 生成分片信息文件
+    {
+        echo "分片信息:"
+        echo "总大小: ${total_size}GB"
+        echo "分片数量: $part"
+        echo "分片列表:"
+        ls -lh *.tar.gz
+    } > split_info.txt
+    
     if $success; then
-        # 重命名为 xxx_300bk
-        local new_name="${folder}_300bk"
-        mv "$folder" "$new_name"
-        if [ $? -eq 0 ]; then
-            log_message "$LOG_INFO" "文件夹已重命名: $new_name"
-            ((success++))
-        else
-            log_message "$LOG_ERROR" "重命名失败: $folder -> $new_name"
-            ((failed++))
-        fi
+        log_message "$LOG_INFO" "成功完成分片打包: $folder (共 $part 个分片)"
+        return 0
+    else
+        log_message "$LOG_ERROR" "分片打包过程中出现错误"
+        return 1
     fi
 }
 
@@ -199,6 +274,68 @@ if [ ${#unmanaged_folders[@]} -eq 0 ]; then
     exit 0
 fi
 
+# 显示可选择的文件夹列表
+echo -e "\n${YELLOW}=== 未被SVN管理的文件夹列表 ===${NC}"
+echo -e "序号  大小(GB)  文件夹路径"
+echo -e "--------------------------------"
+for i in "${!unmanaged_folders[@]}"; do
+    folder="${unmanaged_folders[$i]}"
+    size=$(get_folder_size "$folder")
+    printf "${GREEN}%3d   %6d    %s${NC}\n" "$((i+1))" "$size" "$folder"
+done
+
+# 用户选择提示
+echo -e "\n${YELLOW}请选择要处理的文件夹:${NC}"
+echo "选项:"
+echo "  - 输入序号(如: 1 3 5)选择多个文件夹"
+echo "  - 输入 'all' 处理所有文件夹"
+echo "  - 输入 'q' 退出程序"
+echo -n "> "
+read -r selection
+
+# 处理用户输入
+if [[ "$selection" == "q" ]]; then
+    log_message "$LOG_INFO" "用户取消操作"
+    exit 0
+fi
+
+declare -a selected_folders
+
+if [[ "$selection" == "all" ]]; then
+    selected_folders=("${unmanaged_folders[@]}")
+    log_message "$LOG_INFO" "已选择全部文件夹"
+else
+    # 解析用户选择的序号
+    for num in $selection; do
+        if [[ "$num" =~ ^[0-9]+$ ]] && ((num > 0)) && ((num <= ${#unmanaged_folders[@]})); then
+            selected_folders+=("${unmanaged_folders[$((num-1))]}")
+        else
+            log_message "$LOG_WARNING" "无效的选择: $num, 已跳过"
+        fi
+    done
+fi
+
+# 如果没有选择任何文件夹，退出
+if [ ${#selected_folders[@]} -eq 0 ]; then
+    log_message "$LOG_ERROR" "未选择任何有效的文件夹"
+    exit 1
+fi
+
+# 确认用户选择
+echo -e "\n${YELLOW}已选择以下文件夹:${NC}"
+for folder in "${selected_folders[@]}"; do
+    size=$(get_folder_size "$folder")
+    echo -e "${GREEN}- $folder (${size}GB)${NC}"
+done
+
+echo -ne "\n${YELLOW}确认处理这些文件夹? (y/n):${NC} "
+read -r confirm
+
+if [[ "$confirm" != "y" ]]; then
+    log_message "$LOG_INFO" "用户取消操作"
+    exit 0
+fi
+
 # 统计信息
 declare -i total_folders=${#unmanaged_folders[@]}
 declare -i processed=0
@@ -256,8 +393,8 @@ cleanup_incomplete_backup() {
         rm -f "${folder}.tar.gz"
     fi
 }
-# 处理每个文件夹
-for folder in "${unmanaged_folders[@]}"; do
+# 处理选中的文件夹
+for folder in "${selected_folders[@]}"; do
     ((processed++))
     
     # 显示处理进度
