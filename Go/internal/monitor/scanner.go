@@ -119,10 +119,16 @@ func (ps *ProcessScanner) getProcessInfo(pid int) (*utils.ProcessInfo, error) {
 	// 获取父进程ID
 	ppid := ps.getParentPID(pid)
 
+	// 构建完整的命令行用于显示名称提取
+	fullCommand := command
+	if len(args) > 0 {
+		fullCommand = command + " " + strings.Join(args, " ")
+	}
+
 	return &utils.ProcessInfo{
 		PID:         pid,
 		PPID:        ppid,
-		Command:     command,
+		Command:     ps.extractDisplayName(fullCommand), // 提取更友好的显示名称
 		Args:        args,
 		StartTime:   startTime,
 		User:        user,
@@ -140,6 +146,11 @@ func (ps *ProcessScanner) shouldMonitor(procInfo *utils.ProcessInfo) bool {
 
 // shouldMonitorWithContext 判断是否应该监控该进程（带上下文）
 func (ps *ProcessScanner) shouldMonitorWithContext(procInfo *utils.ProcessInfo, isContainer bool) bool {
+	return ps.shouldMonitorWithContextAndContainer(procInfo, isContainer, "")
+}
+
+// shouldMonitorWithContextAndContainer 判断是否应该监控该进程（带容器上下文）
+func (ps *ProcessScanner) shouldMonitorWithContextAndContainer(procInfo *utils.ProcessInfo, isContainer bool, containerID string) bool {
 	runningTime := time.Since(procInfo.StartTime)
 	commandName := filepath.Base(procInfo.Command)
 	fullCommand := procInfo.Command
@@ -147,18 +158,30 @@ func (ps *ProcessScanner) shouldMonitorWithContext(procInfo *utils.ProcessInfo, 
 		fullCommand = procInfo.Command + " " + strings.Join(procInfo.Args, " ")
 	}
 
-	// 精准监控：只检查是否有监控标记
-	if !ps.shouldMonitorByPreciseRules(fullCommand, procInfo.PID) {
+	// 精准监控：检查是否有监控标记
+	var hasTag bool
+	if isContainer && containerID != "" {
+		// 容器内进程使用增强的检测逻辑
+		hasTag = ps.shouldMonitorByPreciseRulesInContainer(containerID, fullCommand, procInfo.PID)
+	} else {
+		// 主机进程使用标准检测逻辑
+		hasTag = ps.shouldMonitorByPreciseRules(fullCommand, procInfo.PID)
+	}
+
+	if !hasTag {
 		ps.logger.Debugf("进程不匹配精准监控规则: %s (PID=%d)", fullCommand, procInfo.PID)
 		return false
 	}
 
-	// 检查运行时间阈值（避免监控刚启动的进程）
-	if runningTime < ps.thresholdDuration {
-		ps.logger.Debugf("进程运行时间不足: %s (PID=%d, 运行时间=%s)",
-			commandName, procInfo.PID, utils.FormatDuration(runningTime))
-		return false
-	}
+	// 精准监控模式：不检查运行时间阈值，只要有标记就监控
+	// 注释掉运行时间检查，因为精准监控应该立即监控有标记的进程
+	/*
+		if runningTime < ps.thresholdDuration {
+			ps.logger.Debugf("进程运行时间不足: %s (PID=%d, 运行时间=%s)",
+				commandName, procInfo.PID, utils.FormatDuration(runningTime))
+			return false
+		}
+	*/
 
 	// 过滤掉自身进程（cmdmonitor）
 	if strings.Contains(commandName, "cmdmonitor") {
@@ -361,8 +384,8 @@ func (ps *ProcessScanner) ScanDockerContainerProcesses(containerID string) ([]ut
 	}
 
 	for _, procInfo := range containerProcesses {
-		// 检查是否符合监控条件（容器内进程使用宽松策略）
-		if ps.shouldMonitorWithContext(&procInfo, true) {
+		// 检查是否符合监控条件（容器内进程使用增强检测）
+		if ps.shouldMonitorWithContextAndContainer(&procInfo, true, containerID) {
 			processes = append(processes, procInfo)
 		}
 	}
@@ -497,9 +520,26 @@ func (ps *ProcessScanner) shouldMonitorByPreciseRules(fullCommand string, pid in
 		return true
 	}
 
-	// 检查动态标记文件（但只对容器外的进程生效，避免重复监控）
+	// 检查动态标记文件
 	if ps.hasDynamicTag(pid) {
 		ps.logger.Debugf("发现动态标记: %s (PID=%d)", fullCommand, pid)
+		return true
+	}
+
+	return false
+}
+
+// shouldMonitorByPreciseRulesInContainer 检查容器内进程是否符合精准监控规则
+func (ps *ProcessScanner) shouldMonitorByPreciseRulesInContainer(containerID string, fullCommand string, pid int) bool {
+	// 检查动态标记文件
+	if ps.hasDynamicTag(pid) {
+		ps.logger.Debugf("发现动态标记: %s (PID=%d)", fullCommand, pid)
+		return true
+	}
+
+	// 检查注释标记（包括父进程和完整命令行）
+	if ps.hasCommentTagInContainer(containerID, pid, fullCommand) {
+		ps.logger.Debugf("发现注释标记: %s (PID=%d)", fullCommand, pid)
 		return true
 	}
 
@@ -527,6 +567,174 @@ func (ps *ProcessScanner) hasCommentTag(fullCommand string) bool {
 	return false
 }
 
+// hasCommentTagInContainer 检查容器内进程是否有注释标记（包括检查父进程和脚本文件）
+func (ps *ProcessScanner) hasCommentTagInContainer(containerID string, pid int, fullCommand string) bool {
+	// 首先检查当前进程命令
+	if ps.hasCommentTag(fullCommand) {
+		return true
+	}
+
+	// 检查进程的完整命令行参数（使用增强的获取方法）
+	fullCmdline := ps.getProcessCmdline(containerID, pid)
+	if fullCmdline != "" && ps.hasCommentTag(fullCmdline) {
+		ps.logger.Debugf("在完整命令行中发现注释标记: %s (PID=%d)", fullCmdline, pid)
+		return true
+	}
+
+	// 检查父进程的命令行（可能包含完整的命令和注释）
+	parentCmd := ps.getParentProcessCommand(containerID, pid)
+	if parentCmd != "" && ps.hasCommentTag(parentCmd) {
+		ps.logger.Debugf("在父进程中发现注释标记: %s (PID=%d)", parentCmd, pid)
+		return true
+	}
+
+	// 检查父进程的完整命令行（递归检查）
+	parentPID := ps.getContainerParentPID(containerID, pid)
+	if parentPID > 1 {
+		parentFullCmdline := ps.getProcessCmdline(containerID, parentPID)
+		if parentFullCmdline != "" && ps.hasCommentTag(parentFullCmdline) {
+			ps.logger.Debugf("在父进程完整命令行中发现注释标记: %s (PID=%d, ParentPID=%d)", parentFullCmdline, pid, parentPID)
+			return true
+		}
+	}
+
+	// 检查脚本文件内容（如果进程是通过脚本启动的）
+	if ps.checkScriptFileForCommentTag(containerID, pid, fullCommand) {
+		ps.logger.Debugf("在脚本文件中发现注释标记: %s (PID=%d)", fullCommand, pid)
+		return true
+	}
+
+	// 检查父进程的脚本文件内容
+	if parentCmd != "" && ps.checkScriptFileForCommentTag(containerID, pid, parentCmd) {
+		ps.logger.Debugf("在父进程脚本文件中发现注释标记: %s (PID=%d)", parentCmd, pid)
+		return true
+	}
+
+	return false
+}
+
+// checkScriptFileForCommentTag 检查脚本文件是否包含注释标记
+func (ps *ProcessScanner) checkScriptFileForCommentTag(containerID string, pid int, command string) bool {
+	// 检查命令是否指向脚本文件
+	scriptPath := ps.extractScriptPath(command)
+	if scriptPath == "" {
+		return false
+	}
+
+	// 读取脚本文件内容
+	scriptContent := ps.getScriptFileContent(containerID, scriptPath)
+	if scriptContent == "" {
+		return false
+	}
+
+	// 检查脚本内容是否包含注释标记
+	return ps.hasCommentTag(scriptContent)
+}
+
+// extractScriptPath 从命令中提取脚本文件路径
+func (ps *ProcessScanner) extractScriptPath(command string) string {
+	// 处理常见的脚本执行模式
+	patterns := []string{
+		// bash script.sh, sh script.sh, /bin/bash script.sh
+		`(?:^|.*\s)(?:/bin/)?(?:bash|sh)\s+([^\s]+\.sh)(?:\s|$)`,
+		// python script.py, /usr/bin/python script.py
+		`(?:^|.*\s)(?:/usr/bin/)?python[0-9]*\s+([^\s]+\.py)(?:\s|$)`,
+		// 直接执行的脚本文件 ./script.sh, /path/to/script.sh
+		`(?:^|.*\s)(\./[^\s]+\.sh|/[^\s]+\.sh)(?:\s|$)`,
+	}
+
+	for _, pattern := range patterns {
+		if matched, _ := regexp.MatchString(pattern, command); matched {
+			re := regexp.MustCompile(pattern)
+			matches := re.FindStringSubmatch(command)
+			if len(matches) > 1 {
+				return matches[1]
+			}
+		}
+	}
+
+	return ""
+}
+
+// getScriptFileContent 获取容器内脚本文件的内容
+func (ps *ProcessScanner) getScriptFileContent(containerID string, scriptPath string) string {
+	// 使用docker exec读取文件内容，避免shell重定向问题
+	cmd := fmt.Sprintf("docker exec %s cat %s", containerID, scriptPath)
+	output, err := ps.executeCommand(cmd)
+	if err != nil {
+		ps.logger.Debugf("无法读取脚本文件 %s: %v", scriptPath, err)
+		return ""
+	}
+
+	return strings.TrimSpace(output)
+}
+
+// getParentProcessCommand 获取父进程的命令
+func (ps *ProcessScanner) getParentProcessCommand(containerID string, pid int) string {
+	// 获取父进程PID
+	cmd := fmt.Sprintf("docker exec %s ps -p %d -o ppid --no-headers", containerID, pid)
+	output, err := ps.executeCommand(cmd)
+	if err != nil {
+		return ""
+	}
+
+	ppidStr := strings.TrimSpace(output)
+	ppid, err := strconv.Atoi(ppidStr)
+	if err != nil || ppid <= 1 {
+		return ""
+	}
+
+	// 获取父进程的命令
+	parentCmd := fmt.Sprintf("docker exec %s ps -p %d -o cmd --no-headers", containerID, ppid)
+	parentOutput, err := ps.executeCommand(parentCmd)
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(parentOutput)
+}
+
+// getProcessCmdline 获取进程的完整命令行
+func (ps *ProcessScanner) getProcessCmdline(containerID string, pid int) string {
+	// 方法1: 尝试从 /proc/PID/cmdline 读取完整命令行
+	cmd := fmt.Sprintf("docker exec %s cat /proc/%d/cmdline", containerID, pid)
+	output, err := ps.executeCommand(cmd)
+	if err == nil && strings.TrimSpace(output) != "" {
+		// 将null字符替换为空格
+		cmdline := strings.ReplaceAll(strings.TrimSpace(output), "\x00", " ")
+		if cmdline != "" {
+			return cmdline
+		}
+	}
+
+	// 方法2: 使用ps命令获取更完整的命令行信息
+	psCmd := fmt.Sprintf("docker exec %s ps -p %d -o args --no-headers", containerID, pid)
+	psOutput, err := ps.executeCommand(psCmd)
+	if err == nil && strings.TrimSpace(psOutput) != "" {
+		return strings.TrimSpace(psOutput)
+	}
+
+	return ""
+}
+
+// getContainerParentPID 获取容器内进程的父进程PID
+func (ps *ProcessScanner) getContainerParentPID(containerID string, pid int) int {
+	// 使用ps命令获取父进程PID
+	cmd := fmt.Sprintf("docker exec %s ps -p %d -o ppid --no-headers", containerID, pid)
+	output, err := ps.executeCommand(cmd)
+	if err != nil {
+		return 0
+	}
+
+	ppidStr := strings.TrimSpace(output)
+	ppid, err := strconv.Atoi(ppidStr)
+	if err != nil {
+		return 0
+	}
+
+	return ppid
+}
+
 // hasDynamicTag 检查进程是否有动态标记
 func (ps *ProcessScanner) hasDynamicTag(pid int) bool {
 	dynamicTagFile := "/etc/cmdmonitor/dynamic_tags.txt"
@@ -543,9 +751,9 @@ func (ps *ProcessScanner) hasDynamicTag(pid int) bool {
 		return false
 	}
 
-	// 逐行扫描查找PID
+	// 逐行扫描查找PID或脚本名
 	lines := strings.Split(string(content), "\n")
-	targetPID := fmt.Sprintf("PID:%d:", pid)
+	targetPID := fmt.Sprintf("%d", pid)
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -554,25 +762,91 @@ func (ps *ProcessScanner) hasDynamicTag(pid int) bool {
 			continue
 		}
 
-		// 检查是否匹配目标PID
-		if strings.HasPrefix(line, targetPID) {
-			// 解析标记信息
-			parts := strings.Split(line, ":")
-			if len(parts) >= 3 {
-				tag := parts[2]
-				ps.logger.Debugf("找到动态标记: PID=%d, Tag=%s", pid, tag)
+		// 格式1：直接匹配PID数字
+		if line == targetPID {
+			ps.logger.Debugf("找到动态标记: PID=%d", pid)
 
-				// 验证PID是否真实存在（优先检查Docker容器）
-				if ps.verifyPIDExists(pid) {
+			// 验证PID是否真实存在（优先检查Docker容器）
+			if ps.verifyPIDExists(pid) {
+				return true
+			} else {
+				ps.logger.Debugf("动态标记的PID %d 不存在，跳过", pid)
+			}
+		} else {
+			// 格式2：脚本名格式，需要检查当前PID是否匹配该脚本
+			if _, err := strconv.Atoi(line); err != nil {
+				// 这是一个脚本名，检查当前PID是否运行该脚本
+				if ps.pidMatchesScriptName(pid, line) {
+					ps.logger.Debugf("找到动态标记脚本: PID=%d, 脚本=%s", pid, line)
 					return true
-				} else {
-					ps.logger.Debugf("动态标记的PID %d 不存在，跳过", pid)
 				}
 			}
 		}
 	}
 
 	return false
+}
+
+// pidMatchesScriptName 检查指定PID是否运行指定的脚本
+func (ps *ProcessScanner) pidMatchesScriptName(pid int, scriptName string) bool {
+	// 1. 先检查Docker容器中的进程
+	containers, err := ps.getRunningContainers()
+	if err == nil {
+		for _, containerID := range containers {
+			if ps.pidExistsInContainer(containerID, pid) {
+				// 获取容器中该PID的命令
+				if command := ps.getContainerProcessCommand(containerID, pid); command != "" {
+					if ps.commandMatchesScriptName(command, scriptName) {
+						ps.logger.Debugf("容器中PID %d 匹配脚本 %s: %s", pid, scriptName, command)
+						return true
+					}
+				}
+				return false // 找到PID但不匹配脚本
+			}
+		}
+	}
+
+	// 2. 检查主机上的进程
+	if ps.pidExistsOnHost(pid) {
+		// 获取主机上该PID的命令
+		if command := ps.getHostProcessCommand(pid); command != "" {
+			if ps.commandMatchesScriptName(command, scriptName) {
+				ps.logger.Debugf("主机上PID %d 匹配脚本 %s: %s", pid, scriptName, command)
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// getContainerProcessCommand 获取容器中指定PID的命令
+func (ps *ProcessScanner) getContainerProcessCommand(containerID string, pid int) string {
+	cmd := fmt.Sprintf("docker exec %s ps -p %d -o cmd --no-headers", containerID, pid)
+	output, err := ps.executeCommand(cmd)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(output)
+}
+
+// getHostProcessCommand 获取主机上指定PID的命令
+func (ps *ProcessScanner) getHostProcessCommand(pid int) string {
+	// 尝试从 /proc/PID/cmdline 读取
+	cmdlinePath := fmt.Sprintf("/proc/%d/cmdline", pid)
+	if content, err := os.ReadFile(cmdlinePath); err == nil {
+		// 将null字符替换为空格
+		command := strings.ReplaceAll(string(content), "\x00", " ")
+		return strings.TrimSpace(command)
+	}
+
+	// 备用方法：使用ps命令
+	cmd := fmt.Sprintf("ps -p %d -o cmd --no-headers", pid)
+	output, err := ps.executeCommand(cmd)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(output)
 }
 
 // verifyPIDExists 验证PID是否存在（优先Docker容器，然后本地）
@@ -661,44 +935,138 @@ func (ps *ProcessScanner) checkDynamicTaggedProcessesInContainer(containerID str
 			continue
 		}
 
-		// 解析PID标记
-		if strings.HasPrefix(line, "PID:") {
-			parts := strings.Split(line, ":")
-			if len(parts) >= 3 {
-				pidStr := parts[1]
-				tag := parts[2]
+		// 尝试解析为PID数字
+		if pid, err := strconv.Atoi(line); err == nil {
+			// PID格式：直接检查PID
+			if ps.pidExistsInContainer(containerID, pid) {
+				ps.logger.Debugf("在容器 %s 中找到动态标记进程: PID=%d", containerID, pid)
 
-				pid, err := strconv.Atoi(pidStr)
-				if err != nil {
-					ps.logger.Debugf("无效的PID格式: %s", pidStr)
-					continue
+				// 检查是否已经在列表中（避免重复添加）
+				found := false
+				for _, existing := range *processes {
+					if existing.PID == pid {
+						found = true
+						ps.logger.Debugf("动态标记进程 PID=%d 已在扫描列表中", pid)
+						break
+					}
 				}
 
-				// 检查这个PID是否在当前容器中
-				if ps.pidExistsInContainer(containerID, pid) {
-					ps.logger.Debugf("在容器 %s 中找到动态标记进程: PID=%d, Tag=%s", containerID, pid, tag)
-
-					// 检查是否已经在列表中（避免重复添加）
-					found := false
-					for _, existing := range *processes {
-						if existing.PID == pid {
-							found = true
-							ps.logger.Debugf("动态标记进程 PID=%d 已在扫描列表中", pid)
-							break
-						}
+				if !found {
+					// 获取进程信息并添加到监控列表
+					if procInfo := ps.getContainerProcessInfo(containerID, pid); procInfo != nil {
+						*processes = append(*processes, *procInfo)
+						ps.logger.Infof("发现动态标记进程: %s (PID=%d)", procInfo.Command, pid)
 					}
+				}
+			}
+		} else {
+			// 脚本名格式：根据名字搜索进程
+			ps.logger.Debugf("搜索容器 %s 中的脚本: %s", containerID, line)
+			matchedPIDs := ps.findProcessesByScriptName(containerID, line)
 
-					if !found {
-						// 获取进程信息并添加到监控列表
-						if procInfo := ps.getContainerProcessInfo(containerID, pid); procInfo != nil {
-							*processes = append(*processes, *procInfo)
-							ps.logger.Infof("发现动态标记进程: %s (PID=%d, Tag=%s)", procInfo.Command, pid, tag)
-						}
+			for _, pid := range matchedPIDs {
+				// 检查是否已经在列表中（避免重复添加）
+				found := false
+				for _, existing := range *processes {
+					if existing.PID == pid {
+						found = true
+						ps.logger.Debugf("脚本进程 PID=%d 已在扫描列表中", pid)
+						break
+					}
+				}
+
+				if !found {
+					// 获取进程信息并添加到监控列表
+					if procInfo := ps.getContainerProcessInfo(containerID, pid); procInfo != nil {
+						*processes = append(*processes, *procInfo)
+						ps.logger.Infof("发现动态标记脚本进程: %s (PID=%d, 脚本=%s)", procInfo.Command, pid, line)
 					}
 				}
 			}
 		}
 	}
+}
+
+// findProcessesByScriptName 根据脚本名在容器中查找匹配的进程PID
+func (ps *ProcessScanner) findProcessesByScriptName(containerID string, scriptName string) []int {
+	var matchedPIDs []int
+
+	// 使用docker exec获取容器内所有进程
+	cmd := fmt.Sprintf("docker exec %s ps aux", containerID)
+	output, err := ps.executeCommand(cmd)
+	if err != nil {
+		ps.logger.Debugf("获取容器进程列表失败: %v", err)
+		return matchedPIDs
+	}
+
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "USER") {
+			continue // 跳过空行和标题行
+		}
+
+		// 解析进程行：USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
+		fields := strings.Fields(line)
+		if len(fields) < 11 {
+			continue
+		}
+
+		pidStr := fields[1]
+		pid, err := strconv.Atoi(pidStr)
+		if err != nil {
+			continue
+		}
+
+		// 获取完整的命令行（从第11个字段开始）
+		command := strings.Join(fields[10:], " ")
+
+		// 检查命令是否包含脚本名
+		if ps.commandMatchesScriptName(command, scriptName) {
+			ps.logger.Debugf("找到匹配脚本 %s 的进程: PID=%d, Command=%s", scriptName, pid, command)
+			matchedPIDs = append(matchedPIDs, pid)
+		}
+	}
+
+	return matchedPIDs
+}
+
+// commandMatchesScriptName 检查命令是否匹配脚本名
+func (ps *ProcessScanner) commandMatchesScriptName(command string, scriptName string) bool {
+	// 1. 直接包含脚本名
+	if strings.Contains(command, scriptName) {
+		return true
+	}
+
+	// 2. 检查路径中的脚本名（如 /path/to/script.sh）
+	if strings.Contains(command, "/"+scriptName) {
+		return true
+	}
+
+	// 3. 检查以脚本名开头的情况
+	if strings.HasPrefix(command, scriptName+" ") || command == scriptName {
+		return true
+	}
+
+	// 4. 检查常见的脚本执行模式
+	patterns := []string{
+		"bash " + scriptName,
+		"sh " + scriptName,
+		"/bin/bash " + scriptName,
+		"/bin/sh " + scriptName,
+		"python " + scriptName,
+		"python3 " + scriptName,
+		"/usr/bin/python " + scriptName,
+		"/usr/bin/python3 " + scriptName,
+	}
+
+	for _, pattern := range patterns {
+		if strings.Contains(command, pattern) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // getContainerProcessInfo 获取容器中指定PID的进程信息
@@ -752,14 +1120,116 @@ func (ps *ProcessScanner) getContainerProcessInfo(containerID string, pid int) *
 	// 构造进程信息
 	procInfo := &utils.ProcessInfo{
 		PID:       pid,
-		Command:   command,
+		Command:   ps.extractDisplayName(command), // 提取更友好的显示名称
 		User:      user,
 		StartTime: startTime,
 	}
 
 	ps.logger.Debugf("解析容器进程信息: PID=%d, Command=%s, User=%s, StartTime=%s",
-		pid, command, user, startTime.Format("2006-01-02 15:04:05"))
+		pid, procInfo.Command, user, startTime.Format("2006-01-02 15:04:05"))
 	return procInfo
+}
+
+// extractDisplayName 从完整命令中提取更友好的显示名称
+func (ps *ProcessScanner) extractDisplayName(fullCommand string) string {
+	// 如果命令为空，返回原值
+	if fullCommand == "" {
+		return fullCommand
+	}
+
+	// 常见的脚本执行模式，提取脚本名
+	patterns := []struct {
+		prefix  string
+		extract func(string) string
+	}{
+		// bash /path/to/script.sh -> script.sh
+		{"bash ", func(cmd string) string {
+			parts := strings.Fields(cmd)
+			if len(parts) >= 2 {
+				scriptPath := parts[1]
+				return filepath.Base(scriptPath)
+			}
+			return cmd
+		}},
+		// /bin/bash /path/to/script.sh -> script.sh
+		{"/bin/bash ", func(cmd string) string {
+			parts := strings.Fields(cmd)
+			if len(parts) >= 2 {
+				scriptPath := parts[1]
+				return filepath.Base(scriptPath)
+			}
+			return cmd
+		}},
+		// sh /path/to/script.sh -> script.sh
+		{"sh ", func(cmd string) string {
+			parts := strings.Fields(cmd)
+			if len(parts) >= 2 {
+				scriptPath := parts[1]
+				return filepath.Base(scriptPath)
+			}
+			return cmd
+		}},
+		// /bin/sh /path/to/script.sh -> script.sh
+		{"/bin/sh ", func(cmd string) string {
+			parts := strings.Fields(cmd)
+			if len(parts) >= 2 {
+				scriptPath := parts[1]
+				return filepath.Base(scriptPath)
+			}
+			return cmd
+		}},
+		// python /path/to/script.py -> script.py
+		{"python ", func(cmd string) string {
+			parts := strings.Fields(cmd)
+			if len(parts) >= 2 {
+				scriptPath := parts[1]
+				return filepath.Base(scriptPath)
+			}
+			return cmd
+		}},
+		// python3 /path/to/script.py -> script.py
+		{"python3 ", func(cmd string) string {
+			parts := strings.Fields(cmd)
+			if len(parts) >= 2 {
+				scriptPath := parts[1]
+				return filepath.Base(scriptPath)
+			}
+			return cmd
+		}},
+		// /usr/bin/python /path/to/script.py -> script.py
+		{"/usr/bin/python ", func(cmd string) string {
+			parts := strings.Fields(cmd)
+			if len(parts) >= 2 {
+				scriptPath := parts[1]
+				return filepath.Base(scriptPath)
+			}
+			return cmd
+		}},
+		// /usr/bin/python3 /path/to/script.py -> script.py
+		{"/usr/bin/python3 ", func(cmd string) string {
+			parts := strings.Fields(cmd)
+			if len(parts) >= 2 {
+				scriptPath := parts[1]
+				return filepath.Base(scriptPath)
+			}
+			return cmd
+		}},
+	}
+
+	// 检查是否匹配任何模式
+	for _, pattern := range patterns {
+		if strings.HasPrefix(fullCommand, pattern.prefix) {
+			return pattern.extract(fullCommand)
+		}
+	}
+
+	// 如果没有匹配的模式，返回第一个单词（程序名）
+	parts := strings.Fields(fullCommand)
+	if len(parts) > 0 {
+		return filepath.Base(parts[0])
+	}
+
+	return fullCommand
 }
 
 // parseEtimeToStartTime 将etime格式转换为启动时间

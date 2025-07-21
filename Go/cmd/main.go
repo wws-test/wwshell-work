@@ -139,15 +139,6 @@ func (app *Application) initializeNotifier() error {
 
 	emailNotifier := notification.NewEmailNotifier(app.logger, emailConfig)
 
-	// 发送测试消息（异步，不阻塞启动）
-	go func() {
-		if err := emailNotifier.SendTestMessage("Command Monitor 服务已启动"); err != nil {
-			app.logger.Warnf("发送测试邮件失败: %v", err)
-		} else {
-			app.logger.Info("测试邮件发送成功")
-		}
-	}()
-
 	app.notifier = emailNotifier
 	return nil
 }

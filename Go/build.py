@@ -18,10 +18,10 @@ MAIN_PATH = "cmd/main.go"
 BUILD_DIR = "build"
 VERSION = "v1.0.0"
 
-def run_command(cmd, cwd=None):
+def run_command(cmd, cwd=None, env=None):
     """执行命令并返回结果"""
     try:
-        result = subprocess.run(cmd, shell=True, cwd=cwd, 
+        result = subprocess.run(cmd, shell=True, cwd=cwd, env=env,
                               capture_output=True, text=True, check=True)
         return True, result.stdout
     except subprocess.CalledProcessError as e:
@@ -71,8 +71,8 @@ def build_linux():
     
     # 构建命令
     cmd = f'go build -ldflags "-s -w" -o {BUILD_DIR}/{BINARY_NAME}-linux-amd64 {MAIN_PATH}'
-    
-    success, output = run_command(cmd)
+
+    success, output = run_command(cmd, env=env)
     if success:
         print_success(f"Linux版本构建完成: {BUILD_DIR}/{BINARY_NAME}-linux-amd64")
     else:
